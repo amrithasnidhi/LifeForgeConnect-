@@ -140,56 +140,62 @@ export default function LoginPage() {
                   )}
 
                   {/* Mobile OTP section */}
-                  <div className="space-y-2">
-                    <Label className="font-body font-semibold text-sm text-foreground">Mobile Number</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="tel"
-                        placeholder="+91 98765 43210"
-                        value={mobile}
-                        onChange={(e) => setMobile(e.target.value)}
-                        className="font-body flex-1 h-11 rounded-xl border-border focus:border-primary"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOtpSent(true)}
-                        className="h-11 px-4 border-primary text-primary font-body font-semibold hover:bg-primary hover:text-primary-foreground rounded-xl"
-                      >
-                        {otpSent ? "Resend" : "Get OTP"}
-                      </Button>
-                    </div>
-                  </div>
+                  {tab === "donor" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="font-body font-semibold text-sm text-foreground">Mobile Number</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="tel"
+                            placeholder="+91 98765 43210"
+                            value={mobile}
+                            onChange={(e) => setMobile(e.target.value)}
+                            className="font-body flex-1 h-11 rounded-xl border-border focus:border-primary"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setOtpSent(true)}
+                            className="h-11 px-4 border-primary text-primary font-body font-semibold hover:bg-primary hover:text-primary-foreground rounded-xl"
+                          >
+                            {otpSent ? "Resend" : "Get OTP"}
+                          </Button>
+                        </div>
+                      </div>
 
-                  {otpSent && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      className="space-y-2"
-                    >
-                      <Label className="font-body font-semibold text-sm text-foreground">Enter OTP</Label>
-                      <Input
-                        type="text"
-                        maxLength={6}
-                        placeholder="6-digit OTP"
-                        className="font-body h-11 rounded-xl border-border focus:border-primary tracking-[0.3em] text-center text-lg"
-                      />
                       {otpSent && (
-                        <p className="font-body text-xs text-secondary flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> OTP sent to {mobile || "+91 XXXXX XXXXX"}
-                        </p>
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="space-y-2"
+                        >
+                          <Label className="font-body font-semibold text-sm text-foreground">Enter OTP</Label>
+                          <Input
+                            type="text"
+                            maxLength={6}
+                            placeholder="6-digit OTP"
+                            className="font-body h-11 rounded-xl border-border focus:border-primary tracking-[0.3em] text-center text-lg"
+                          />
+                          {otpSent && (
+                            <p className="font-body text-xs text-secondary flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> OTP sent to {mobile || "+91 XXXXX XXXXX"}
+                            </p>
+                          )}
+                        </motion.div>
                       )}
-                    </motion.div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="font-body text-xs text-muted-foreground font-medium">or login with email</span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                    </>
                   )}
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="font-body text-xs text-muted-foreground font-medium">or login with email</span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-
                   <div className="space-y-2">
-                    <Label className="font-body font-semibold text-sm">Email Address</Label>
+                    <Label className="font-body font-semibold text-sm">
+                      {tab === "hospital" ? "Official Email" : "Email Address"}
+                    </Label>
                     <Input
                       type="email"
                       placeholder="you@example.com"
