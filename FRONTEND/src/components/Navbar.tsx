@@ -29,11 +29,10 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled || !isHome
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || !isHome
           ? "bg-card/95 backdrop-blur-md shadow-card border-b border-border"
           : "bg-transparent"
-      }`}
+        }`}
     >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
@@ -44,16 +43,14 @@ export default function Navbar() {
             </div>
             <div className="leading-tight">
               <span
-                className={`font-display font-bold text-lg ${
-                  scrolled || !isHome ? "text-foreground" : "text-primary-foreground"
-                }`}
+                className={`font-display font-bold text-lg ${scrolled || !isHome ? "text-foreground" : "text-primary-foreground"
+                  }`}
               >
                 LifeForge
               </span>
               <span
-                className={`font-body text-xs block -mt-1 font-semibold tracking-widest uppercase ${
-                  scrolled || !isHome ? "text-primary" : "text-accent"
-                }`}
+                className={`font-body text-xs block -mt-1 font-semibold tracking-widest uppercase ${scrolled || !isHome ? "text-primary" : "text-accent"
+                  }`}
               >
                 Connect
               </span>
@@ -67,11 +64,10 @@ export default function Navbar() {
               <button
                 onMouseEnter={() => setModulesOpen(true)}
                 onMouseLeave={() => setModulesOpen(false)}
-                className={`flex items-center gap-1 font-body text-sm font-medium transition-colors ${
-                  scrolled || !isHome
+                className={`flex items-center gap-1 font-body text-sm font-medium transition-colors ${scrolled || !isHome
                     ? "text-foreground hover:text-primary"
                     : "text-primary-foreground/90 hover:text-primary-foreground"
-                }`}
+                  }`}
               >
                 Modules <ChevronDown className="w-4 h-4" />
               </button>
@@ -105,24 +101,32 @@ export default function Navbar() {
 
             <Link
               to="/dashboard"
-              className={`font-body text-sm font-medium transition-colors ${
-                scrolled || !isHome
+              className={`font-body text-sm font-medium transition-colors ${scrolled || !isHome
                   ? "text-foreground hover:text-primary"
                   : "text-primary-foreground/90 hover:text-primary-foreground"
-              }`}
+                }`}
             >
               Dashboard
+            </Link>
+
+            <Link
+              to="/ai-companion"
+              className={`font-body text-sm font-bold flex items-center gap-1.5 transition-colors ${scrolled || !isHome
+                  ? "text-primary hover:opacity-80"
+                  : "text-primary-foreground hover:opacity-80"
+                }`}
+            >
+              <span className="animate-pulse text-lg">✨</span> AI Companion
             </Link>
 
             <Link to="/login">
               <Button
                 variant="outline"
                 size="sm"
-                className={`font-body font-semibold border-2 ${
-                  scrolled || !isHome
+                className={`font-body font-semibold border-2 ${scrolled || !isHome
                     ? "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                     : "border-primary-foreground/60 text-primary-foreground hover:bg-primary-foreground/10"
-                }`}
+                  }`}
               >
                 Login
               </Button>
@@ -139,9 +143,8 @@ export default function Navbar() {
 
           {/* Mobile menu toggle */}
           <button
-            className={`md:hidden p-2 rounded-lg ${
-              scrolled || !isHome ? "text-foreground" : "text-primary-foreground"
-            }`}
+            className={`md:hidden p-2 rounded-lg ${scrolled || !isHome ? "text-foreground" : "text-primary-foreground"
+              }`}
             onClick={() => setIsOpen(!isOpen)}
           >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -169,6 +172,15 @@ export default function Navbar() {
                     <span className={`font-body font-semibold text-sm ${m.color}`}>{m.name}</span>
                   </Link>
                 ))}
+                <Link
+                  to="/ai-companion"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 bg-primary/5 hover:bg-primary/10 rounded-lg mx-2 transition-colors border border-primary/20"
+                >
+                  <span className="text-xl">✨</span>
+                  <span className="font-body font-bold text-sm text-primary">AI Companion</span>
+                </Link>
+
                 <div className="flex flex-col gap-2 px-4 pt-3 border-t border-border mx-2">
                   <Link to="/login" onClick={() => setIsOpen(false)}>
                     <Button variant="outline" className="w-full border-primary text-primary">
