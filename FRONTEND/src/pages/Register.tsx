@@ -406,6 +406,7 @@ function HospitalRegister() {
   const [regNumber, setRegNumber] = useState("");
   const [license, setLicense] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [contactMobile, setContactMobile] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -415,7 +416,7 @@ function HospitalRegister() {
 
   const handleSubmit = async () => {
     setError("");
-    if (!name || !regNumber || !address || !contactPerson || !contactMobile || !contactEmail || !password) {
+    if (!name || !regNumber || !address || !city || !contactPerson || !contactMobile || !contactEmail || !password) {
       setError("Please fill in all required fields");
       return;
     }
@@ -430,7 +431,7 @@ function HospitalRegister() {
         reg_number: regNumber,
         license: license || undefined,
         address,
-        city: address.split(",").slice(-2, -1)[0]?.trim() || "Mumbai",
+        city,
         contact_person: contactPerson,
         contact_mobile: contactMobile,
         contact_email: contactEmail,
@@ -496,7 +497,11 @@ function HospitalRegister() {
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Full Address</Label>
-          <Input placeholder="Street, Area, City, State - PIN" value={address} onChange={(e) => setAddress(e.target.value)} className="h-11 rounded-xl font-body" />
+          <Input placeholder="Street, Area, State - PIN" value={address} onChange={(e) => setAddress(e.target.value)} className="h-11 rounded-xl font-body" />
+        </div>
+        <div className="col-span-2 space-y-1.5">
+          <Label className="font-body font-semibold text-sm">City</Label>
+          <Input placeholder="E.g., Mumbai, Delhi, Kochi" value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
           <Label className="font-body font-semibold text-sm">{org.contactLabel}</Label>

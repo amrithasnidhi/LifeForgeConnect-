@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/AuthContext";
@@ -236,6 +237,7 @@ function HospitalDashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const hospitalId = getCurrentUserId();
   const navigate = useNavigate();
 
@@ -326,10 +328,10 @@ function HospitalDashboard() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="border-border font-body text-xs rounded-lg">
+                  <Button size="sm" variant="outline" className="border-border font-body text-xs rounded-lg" onClick={() => setSelectedRequest(req)}>
                     <Eye className="w-3 h-3 mr-1" /> View
                   </Button>
-                  <Button size="sm" className="bg-gradient-primary text-primary-foreground font-body text-xs rounded-lg">
+                  <Button size="sm" className="bg-gradient-primary text-primary-foreground font-body text-xs rounded-lg" onClick={() => setSelectedRequest(req)}>
                     Contact ({req.matched})
                   </Button>
                 </div>
@@ -338,6 +340,45 @@ function HospitalDashboard() {
           )}
         </div>
       </div>
+
+      <Dialog open={!!selectedRequest} onOpenChange={(open) => !open && setSelectedRequest(null)}>
+        <DialogContent className="sm:max-w-md bg-card border-border shadow-primary-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl text-foreground flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" /> Matched Donors
+            </DialogTitle>
+            <DialogDescription className="font-body text-sm text-muted-foreground">
+              {selectedRequest?.group} · {selectedRequest?.units} unit(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 mt-4">
+            {selectedRequest?.donors?.length === 0 ? (
+              <div className="text-center p-6 border-2 border-dashed border-border rounded-xl">
+                <p className="font-body text-muted-foreground">No donors have matched yet. We will notify you when someone responds.</p>
+              </div>
+            ) : (
+              selectedRequest?.donors?.map((d: any) => (
+                <div key={d.id} className="p-4 border-2 border-border rounded-xl bg-background flex flex-col gap-2">
+                  <div className="flex justify-between items-start">
+                    <span className="font-display font-bold text-lg text-foreground">{d.name}</span>
+                    <Badge className="bg-primary/10 text-primary border-0 font-body text-xs">Matched</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm font-body text-muted-foreground mt-1">
+                    <MapPin className="w-4 h-4 shrink-0" /> {d.city || "—"}
+                  </div>
+                  <div className="mt-2 text-sm font-body text-foreground font-medium bg-muted p-2 rounded-lg flex justify-between items-center">
+                    <span>📞 {d.mobile}</span>
+                    <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 h-7 text-xs" onClick={(e) => {
+                      e.stopPropagation();
+                      window.location.href = `tel:${d.mobile}`;
+                    }}>Call Now</Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

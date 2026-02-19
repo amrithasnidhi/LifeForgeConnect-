@@ -285,27 +285,39 @@ def get_hospital_dashboard(hospital_id: str):
     # Build combined active_requests list matching HospitalDashboard.tsx
     active = []
     for r in (blood_reqs.data or []):
-        matched = supabase.table("matches").select("id", count="exact") \
-            .eq("request_id", r["id"]).eq("status", "pending").execute()
+        matched = supabase.table("matches").select("id, donor_id, status").eq("request_id", r["id"]).eq("status", "pending").execute()
+        donor_ids = [m["donor_id"] for m in (matched.data or []) if m.get("donor_id")]
+        donors = []
+        if donor_ids:
+            d_res = supabase.table("donors").select("id, name, mobile, city").in_("id", donor_ids).execute()
+            donors = d_res.data or []
+
         active.append({
             "id":       r["id"],
             "group":    r["blood_group"],
             "units":    r.get("units", 1),
             "urgency":  (r.get("urgency") or "urgent").upper(),
             "module":   "BloodBridge",
-            "matched":  matched.count or 0,
+            "matched":  len(donors),
+            "donors":   donors,
             "posted":   _time_ago(r.get("created_at", "")),
         })
     for r in (plat_reqs.data or []):
-        matched = supabase.table("matches").select("id", count="exact") \
-            .eq("request_id", r["id"]).eq("status", "pending").execute()
+        matched = supabase.table("matches").select("id, donor_id, status").eq("request_id", r["id"]).eq("status", "pending").execute()
+        donor_ids = [m["donor_id"] for m in (matched.data or []) if m.get("donor_id")]
+        donors = []
+        if donor_ids:
+            d_res = supabase.table("donors").select("id, name, mobile, city").in_("id", donor_ids).execute()
+            donors = d_res.data or []
+
         active.append({
             "id":       r["id"],
             "group":    f"{r.get('blood_group','')} Platelets",
             "units":    r.get("units", 1),
             "urgency":  (r.get("urgency") or "urgent").upper(),
             "module":   "PlateletAlert",
-            "matched":  matched.count or 0,
+            "matched":  len(donors),
+            "donors":   donors,
             "posted":   _time_ago(r.get("created_at", "")),
         })
 

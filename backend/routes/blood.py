@@ -268,6 +268,15 @@ def request_specific_donor(body: DonorRequestBody):
         raise HTTPException(status_code=500, detail="Failed to create blood request")
 
     request_id = res.data[0]["id"]
+    try:
+        supabase.table("matches").insert({
+            "request_id": request_id,
+            "donor_id": body.donor_id,
+            "status": "pending",
+            "module": "blood"
+        }).execute()
+    except Exception:
+        pass
 
     # 3. Get donor's mobile + send SMS
     try:

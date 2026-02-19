@@ -5,6 +5,7 @@ import { MapPin, Clock, AlertTriangle, CheckCircle2, Plus, Filter, ArrowLeft, Lo
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BloodBridgeMap from "@/components/BloodBridgeMap";
@@ -19,6 +20,7 @@ export default function BloodBridge() {
 
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [locationInput, setLocationInput] = useState("");
+  const [selectedDonorProfile, setSelectedDonorProfile] = useState<BloodDonor | null>(null);
   const [donors, setDonors] = useState<BloodDonor[]>([]);
   const [urgentRequests, setUrgentRequests] = useState<BloodRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -477,13 +479,13 @@ export default function BloodBridge() {
                           </div>
                           <div className="flex items-center gap-4 text-xs font-body text-muted-foreground mb-3">
                             <span className="font-bold text-blood">{donor.group}</span>
-                            <span><MapPin className="w-3 h-3 inline" /> {donor.distance}</span>
+                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3 inline" /> {donor.city}</span>
                             <span>⭐ {donor.trust}</span>
                             <span>Last: {donor.last_donated}</span>
                           </div>
                           {donor.available && (
                             <div className="flex gap-2">
-                              <Button size="sm" variant="outline" className="flex-1 border-border font-body text-xs rounded-lg">
+                              <Button size="sm" variant="outline" className="flex-1 border-border font-body text-xs rounded-lg" onClick={() => setSelectedDonorProfile(donor)}>
                                 View Profile
                               </Button>
                               <Button
@@ -528,6 +530,68 @@ export default function BloodBridge() {
       </div>
 
       <Footer />
+
+      <Dialog open={!!selectedDonorProfile} onOpenChange={(open) => !open && setSelectedDonorProfile(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-blood/10 flex items-center justify-center text-blood text-xl font-black">
+                {selectedDonorProfile?.name[0]}
+              </div>
+              <div>
+                <div className="text-xl">{selectedDonorProfile?.name}</div>
+                <div className="text-sm font-normal text-muted-foreground flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" /> {selectedDonorProfile?.distance || selectedDonorProfile?.city}
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="flex gap-4 p-4 rounded-xl bg-muted/30 border border-border">
+              <div className="flex-1 text-center border-r border-border">
+                <div className="font-display font-black text-2xl text-blood">{selectedDonorProfile?.group}</div>
+                <div className="font-body text-[10px] uppercase text-muted-foreground font-bold tracking-widest">Blood Group</div>
+              </div>
+              <div className="flex-1 text-center border-r border-border">
+                <div className="font-display font-black text-2xl text-secondary">{selectedDonorProfile?.trust}</div>
+                <div className="font-body text-[10px] uppercase text-muted-foreground font-bold tracking-widest">Trust Score</div>
+              </div>
+              <div className="flex-1 text-center flex flex-col items-center justify-center">
+                <Badge className={`font-body text-xs border-0 ${selectedDonorProfile?.available ? "bg-secondary/15 text-secondary" : "bg-muted text-muted-foreground"}`}>
+                  {selectedDonorProfile?.available ? "Available" : "Busy"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-3 font-body text-sm pt-2">
+              <div className="flex justify-between border-b border-border/50 pb-2">
+                <span className="text-muted-foreground">Location</span>
+                <span className="font-semibold text-foreground text-right">{selectedDonorProfile?.city}</span>
+              </div>
+              <div className="flex justify-between border-b border-border/50 pb-2">
+                <span className="text-muted-foreground">Last Donated</span>
+                <span className="font-semibold text-foreground">{selectedDonorProfile?.last_donated || "No record"}</span>
+              </div>
+              <div className="flex justify-between pb-1">
+                <span className="text-muted-foreground">Verified User</span>
+                <span className="font-semibold text-secondary flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Yes
+                </span>
+              </div>
+            </div>
+
+            <Button
+              className="w-full h-11 bg-blood hover:bg-blood/90 text-white font-body font-bold rounded-xl mt-4"
+              onClick={() => {
+                if (selectedDonorProfile) handleRequest(selectedDonorProfile);
+                setSelectedDonorProfile(null);
+              }}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" /> Request Donation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

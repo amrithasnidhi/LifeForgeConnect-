@@ -83,6 +83,7 @@ const BloodBridgeMap = ({ donors = [] }: BloodBridgeMapProps) => {
         width: "100%",
         height: "450px",
         borderRadius: "12px",
+        zIndex: 0,
       }}
     />
   );
