@@ -143,15 +143,25 @@ def register_donor(req: DonorRegisterRequest):
 @router.post("/register/hospital")
 def register_hospital(req: HospitalRegisterRequest):
     """Called by Register.tsx (HospitalRegister component) on submit."""
+    print(f"[register_hospital] Attempting to sign up {req.contact_email}")
     try:
         auth_res = supabase.auth.sign_up({
             "email": req.contact_email,
             "password": req.password,
         })
     except Exception as e:
+        print(f"[register_hospital] Auth error: {e}")
         raise HTTPException(status_code=400, detail=f"Auth error: {e}")
 
     user_id = auth_res.user.id if auth_res.user else None
+    print(f"[register_hospital] Auth successful, user_id: {user_id}")
+
+    if not user_id:
+        print("[register_hospital] User already exists or confirmation required (no user_id)")
+        raise HTTPException(
+            status_code=400, 
+            detail="This email is already registered or requires confirmation. Try logging in."
+        )
 
     try:
         res = supabase.table("hospitals").insert({
@@ -168,13 +178,21 @@ def register_hospital(req: HospitalRegisterRequest):
         }).execute()
     except Exception as e:
         # Cleanup auth user if profile fails
-        supabase.auth.admin.delete_user(user_id)
+        print(f"[register_hospital] Profile insert failed: {e}")
+        if user_id:
+            try:
+                supabase.auth.admin.delete_user(user_id)
+                print(f"[register_hospital] Cleaned up user {user_id}")
+            except Exception as delete_err:
+                print(f"[register_hospital] Cleanup failed: {delete_err}")
+        
         err_msg = str(e)
         if "duplicate key" in err_msg.lower():
             raise HTTPException(status_code=400, detail="Registration number already exists")
         raise HTTPException(status_code=400, detail=f"Registration failed: {err_msg}")
 
     if not res.data:
+        print("[register_hospital] ERROR: No data returned from insert")
         raise HTTPException(status_code=500, detail="Failed to create hospital profile")
 
     return {
@@ -209,14 +227,19 @@ def login(req: LoginRequest):
     profile = None
     redirect = "/dashboard"
 
-    if req.role == "donor":
-        p = supabase.table("donors").select("name,city,blood_group,trust_score,is_verified").eq("id", user_id).single().execute()
-        profile = p.data
-        redirect = "/dashboard"
-    elif req.role == "hospital":
-        p = supabase.table("hospitals").select("name,city,is_verified").eq("id", user_id).single().execute()
-        profile = p.data
-        redirect = "/dashboard?role=hospital"
+    try:
+        if req.role == "donor":
+            p = supabase.table("donors").select("name,city,blood_group,trust_score,is_verified,donor_types").eq("id", user_id).single().execute()
+            profile = p.data
+            redirect = "/dashboard"
+        elif req.role == "hospital":
+            p = supabase.table("hospitals").select("name,city,is_verified").eq("id", user_id).single().execute()
+            profile = p.data
+            redirect = "/dashboard?role=hospital"
+    except Exception as e:
+        # Profile not found in DB — login still succeeds, but profile will be None
+        print(f"[login] Profile lookup failed for {req.role} {user_id}: {e}")
+        profile = None
 
     return {
         "success": True,
