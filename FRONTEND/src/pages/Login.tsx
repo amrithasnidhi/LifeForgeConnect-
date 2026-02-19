@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Heart, Eye, EyeOff, CheckCircle2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/AuthContext";
+import { api } from "@/lib/api";
 
 type Mode = "donor" | "hospital" | "admin";
 
@@ -22,8 +24,40 @@ export default function LoginPage() {
   const [orgType, setOrgType] = useState("hospital");
   const [otpSent, setOtpSent] = useState(false);
   const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [searchParams] = useSearchParams();
-  const defaultMode = (searchParams.get("mode") as Mode) || "donor";
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const handleLogin = async (tab: string) => {
+    setError("");
+    if (!email || !password) {
+      setError("Please enter email and password");
+      return;
+    }
+    setLoading(true);
+    try {
+      const role = tab as Mode;
+      const data = await api.auth.login(email, password, role);
+      // data contains: { access_token, user_id, role, profile, redirect }
+      const profile = data.profile || {};
+      const userName = profile.name || email.split("@")[0];
+      login(
+        role,
+        userName,
+        role === "hospital" ? (orgType as any) : undefined,
+        profile
+      );
+      navigate("/dashboard");
+    } catch (e: any) {
+      setError(e.message || "Login failed. Check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -102,7 +136,7 @@ export default function LoginPage() {
               </p>
             )}
 
-            <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="mb-6 mt-4">
+            <Tabs value={mode} onValueChange={(v) => { setMode(v as Mode); setError(""); }} className="mb-6 mt-4">
               {mode !== "admin" && (
                 <TabsList className="w-full grid grid-cols-2 bg-muted rounded-xl h-11">
                   <TabsTrigger value="donor" className="rounded-lg font-body font-semibold text-sm">
@@ -199,6 +233,8 @@ export default function LoginPage() {
                     <Input
                       type="email"
                       placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="font-body h-11 rounded-xl border-border focus:border-primary"
                     />
                   </div>
@@ -212,6 +248,8 @@ export default function LoginPage() {
                       <Input
                         type={showPass ? "text" : "password"}
                         placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         className="font-body h-11 rounded-xl border-border focus:border-primary pr-12"
                       />
                       <button
@@ -224,14 +262,20 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  <Link to="/dashboard">
-                    <Button className="w-full h-12 font-body font-bold text-base bg-gradient-primary text-primary-foreground rounded-xl shadow-primary hover:opacity-90 mt-2">
-                      Login as {tab === "hospital"
-                        ? loginOrgTypes.find(o => o.id === orgType)?.label
-                        : tab.charAt(0).toUpperCase() + tab.slice(1)
-                      }
-                    </Button>
-                  </Link>
+                  {error && (
+                    <p className="font-body text-sm text-blood font-semibold">{error}</p>
+                  )}
+
+                  <Button
+                    onClick={() => handleLogin(tab)}
+                    disabled={loading}
+                    className="w-full h-12 font-body font-bold text-base bg-gradient-primary text-primary-foreground rounded-xl shadow-primary hover:opacity-90 mt-2"
+                  >
+                    {loading ? "Logging in..." : `Login as ${tab === "hospital"
+                      ? loginOrgTypes.find(o => o.id === orgType)?.label
+                      : tab.charAt(0).toUpperCase() + tab.slice(1)
+                      }`}
+                  </Button>
                 </TabsContent>
               ))}
             </Tabs>
