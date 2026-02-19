@@ -40,7 +40,8 @@ async function req<T>(
         url = urlObj.toString();
     } else {
         // Relative path - will be handled by Vite proxy
-        let relativePath = path;
+        // Add /api prefix so it triggers the Vite proxy rule
+        let relativePath = `/api${path}`;
         if (params) {
             const searchParams = new URLSearchParams();
             Object.entries(params).forEach(([k, v]) => {

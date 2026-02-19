@@ -12,16 +12,12 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
     proxy: {
-      // Any request to /auth/*, /blood/*, /thal/*, etc. is forwarded to FastAPI (port 8000)
-      "/auth": { target: "http://localhost:8000", changeOrigin: true },
-      "/blood": { target: "http://localhost:8000", changeOrigin: true },
-      "/thal": { target: "http://localhost:8000", changeOrigin: true },
-      "/platelet": { target: "http://localhost:8000", changeOrigin: true },
-      "/marrow": { target: "http://localhost:8000", changeOrigin: true },
-      "/organ": { target: "http://localhost:8000", changeOrigin: true },
-      "/milk": { target: "http://localhost:8000", changeOrigin: true },
-      "/dashboard": { target: "http://localhost:8000", changeOrigin: true },
-      "/stats": { target: "http://localhost:8000", changeOrigin: true },
+      // Forward requests starting with /api to FastAPI
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
