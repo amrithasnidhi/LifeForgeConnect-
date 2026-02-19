@@ -85,10 +85,9 @@ def register_donor(req: DonorRegisterRequest):
     """
     # 1. Create auth user
     try:
-        auth_res = supabase.auth.admin.create_user({
+        auth_res = supabase.auth.sign_up({
             "email": req.email,
             "password": req.password,
-            "email_confirm": True,
         })
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Auth error: {e}")
@@ -134,10 +133,9 @@ def register_donor(req: DonorRegisterRequest):
 def register_hospital(req: HospitalRegisterRequest):
     """Called by Register.tsx (HospitalRegister component) on submit."""
     try:
-        auth_res = supabase.auth.admin.create_user({
+        auth_res = supabase.auth.sign_up({
             "email": req.contact_email,
             "password": req.password,
-            "email_confirm": True,
         })
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Auth error: {e}")
