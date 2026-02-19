@@ -98,8 +98,8 @@ function DonorRegister() {
                     key={g}
                     onClick={() => setGender(g)}
                     className={`flex-1 h-11 rounded-xl border-2 font-body text-xs font-semibold transition-all ${gender === g
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:border-primary/40"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/40"
                       }`}
                   >
                     {g}
@@ -143,8 +143,8 @@ function DonorRegister() {
                   key={bg}
                   onClick={() => setBloodGroup(bg)}
                   className={`h-11 rounded-xl border-2 font-display font-bold text-sm transition-all ${bloodGroup === bg
-                      ? "border-blood bg-blood/10 text-blood"
-                      : "border-border text-muted-foreground hover:border-blood/30"
+                    ? "border-blood bg-blood/10 text-blood"
+                    : "border-border text-muted-foreground hover:border-blood/30"
                     }`}
                 >
                   {bg}
@@ -163,8 +163,8 @@ function DonorRegister() {
                   onClick={() => toggleType(type.id)}
                   disabled={type.womenOnly && gender === "Male"}
                   className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${selected.includes(type.id)
-                      ? "border-primary bg-primary/8 text-primary"
-                      : "border-border hover:border-primary/30"
+                    ? "border-primary bg-primary/8 text-primary"
+                    : "border-border hover:border-primary/30"
                     }`}
                 >
                   <span className="text-xl">{type.emoji}</span>
@@ -350,8 +350,8 @@ function HospitalRegister() {
               type="button"
               onClick={() => setOrgType(type.id)}
               className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all font-body text-sm font-semibold ${orgType === type.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/40"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/40"
                 }`}
             >
               <span className="text-lg">{type.emoji}</span>
@@ -502,7 +502,7 @@ export default function RegisterPage() {
           <h1 className="font-display text-3xl font-bold text-foreground mb-1">Create Account</h1>
           <p className="font-body text-sm text-muted-foreground mb-6">
             Already registered?{" "}
-            <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link>
+            <Link to="/login" className="text-primary font-semibold hover:underline">Login</Link>
           </p>
 
           <Tabs defaultValue={defaultTab}>
