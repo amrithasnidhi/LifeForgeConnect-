@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Heart, ArrowLeft, Upload, CheckCircle2, Eye, EyeOff, ChevronRight, ChevronLeft } from "lucide-react";
+import { Heart, ArrowLeft, CheckCircle2, Eye, EyeOff, ChevronRight, ChevronLeft } from "lucide-react";
+import FileUploadZone from "@/components/FileUploadZone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -238,11 +239,12 @@ function DonorRegister() {
           {/* ID Upload */}
           <div className="space-y-2">
             <Label className="font-body font-semibold text-sm">Upload Government ID</Label>
-            <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/40 transition-colors cursor-pointer">
-              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="font-body text-sm text-muted-foreground">Drag & drop or <span className="text-primary font-semibold">browse</span></p>
-              <p className="font-body text-xs text-muted-foreground mt-1">Aadhaar, PAN, Voter ID (max 5MB)</p>
-            </div>
+            <FileUploadZone
+              accept="image/*,.pdf"
+              maxSizeMB={5}
+              hint="Aadhaar, PAN, Voter ID (max 5 MB)"
+              accentClass="primary"
+            />
           </div>
 
           <div className="flex gap-3">
@@ -510,10 +512,13 @@ function HospitalRegister() {
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Upload Documents</Label>
-          <div className="border-2 border-dashed border-border rounded-xl p-5 text-center hover:border-primary/40 transition-colors cursor-pointer">
-            <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-1.5" />
-            <p className="font-body text-sm text-muted-foreground">{org.docsHint}</p>
-          </div>
+          <FileUploadZone
+            accept="image/*,.pdf"
+            maxSizeMB={10}
+            hint={org.docsHint}
+            multiple
+            accentClass="primary"
+          />
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Password</Label>
