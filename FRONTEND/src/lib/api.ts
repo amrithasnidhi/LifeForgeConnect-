@@ -199,7 +199,7 @@ export const api = {
 
         /** Login.tsx Sign In button */
         login: async (email: string, password: string, role = "donor") => {
-            const data = await post<{ access_token: string; user_id: string; role: string; redirect: string }>(
+            const data = await post<{ access_token: string; user_id: string; role: string; redirect: string; profile: any }>(
                 "/auth/login", { email, password, role }
             );
             localStorage.setItem("lf_token", data.access_token);
