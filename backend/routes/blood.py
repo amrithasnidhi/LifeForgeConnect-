@@ -2,10 +2,12 @@
 routes/blood.py
 ---------------
 Endpoints consumed by BloodBridge.tsx:
-  GET  /blood/donors          → donor cards grid (with trust, distance, eligibility)
-  GET  /blood/requests/open   → "Live Urgent Requests" list
-  POST /blood/requests        → hospitals post a new blood need
-  GET  /blood/shortage        → shortage prediction widget
+  GET  /blood/donors              → donor cards grid
+  GET  /blood/requests/open       → Live Urgent Requests list
+  POST /blood/requests            → hospitals post a new blood need
+  POST /blood/donors/request      → hospital targets a specific donor
+  GET  /blood/requests/for-donor  → donor dashboard urgent requests
+  GET  /blood/shortage            → shortage prediction widget
 """
 
 from datetime import date, datetime, timezone
@@ -21,68 +23,65 @@ from utils.sms import alert_donors
 router = APIRouter()
 
 
+# ── Notification helper ───────────────────────────────────────────────────────
+
+def _create_notification(user_id: str, title: str, message: str, notif_type: str):
+    """Insert a row into the notifications table. Never raises — non-critical."""
+    try:
+        supabase.table("notifications").insert({
+            "user_id":  user_id,
+            "title":    title,
+            "message":  message,
+            "type":     notif_type,
+            "is_read":  False,
+        }).execute()
+    except Exception:
+        pass
+
+
 # ── GET /blood/donors ─────────────────────────────────────────────────────────
 
 @router.get("/donors")
 def get_blood_donors(
-    blood_group: Optional[str] = Query(None, description="Filter by compatible blood group"),
+    blood_group: Optional[str] = Query(None),
     city:        Optional[str] = Query(None),
     pincode:     Optional[str] = Query(None),
     lat:         Optional[float] = Query(None),
     lng:         Optional[float] = Query(None),
     limit:       int = Query(20, le=50),
 ):
-    """
-    Powers the 'Available Donors' grid on BloodBridge.tsx.
-    Returns donors with:
-      - eligible_to_donate (90-day gap enforced)
-      - last_donated_label  ("92 days ago")
-      - trust_stars         (4.9 / 5)
-      - distance_km         (if lat/lng provided)
-    """
     query = supabase.table("donors") \
         .select("id, name, city, pincode, blood_group, trust_score, is_available, is_verified, lat, lng, last_donation_date, donor_types") \
         .eq("is_available", True)
 
-    # Note: ilike() crashes on supabase-py 2.4 — use eq() for exact match
-    # and do case-insensitive partial matching in Python below.
     if pincode:
         query = query.eq("pincode", pincode)
 
     res = query.limit(200).execute()
     donors = res.data or []
 
-    today = date.today()
     results = []
 
     for d in donors:
-        # City filter (case-insensitive partial match, done in Python
-        # because supabase-py 2.4 ilike() is broken)
         if city:
             donor_city = (d.get("city") or "").lower()
             if city.lower() not in donor_city:
                 continue
 
-        # Blood group compatibility filter
         if blood_group and d.get("blood_group"):
             if not blood_compatible(d["blood_group"], blood_group):
                 continue
 
-        # Accept donors who have 'blood' in donor_types, OR who have a
-        # blood_group set but haven't explicitly opted into module-specific
-        # types yet (e.g. registered via another module first).
         dtypes = d.get("donor_types") or []
         has_blood_type = "blood" in dtypes
-        has_blood_group = bool(d.get("blood_group"))
         if dtypes and not has_blood_type:
-            # Donor explicitly opted into other types but not blood → skip
             continue
 
         last = d.get("last_donation_date")
         since = days_since(last)
         eligible = since is None or since >= 90
 
-        trust_raw = d.get("trust_score", 50)
+        trust_raw   = d.get("trust_score", 50)
         trust_stars = round(trust_raw / 100 * 5, 1)
 
         distance_km = None
@@ -104,7 +103,6 @@ def get_blood_donors(
             "distance":          f"{distance_km} km" if distance_km is not None else "—",
         })
 
-    # Sort: eligible first, then by trust score desc
     results.sort(key=lambda x: (-int(x["eligible_to_donate"]), -x["trust_score"]))
     return results[:limit]
 
@@ -113,11 +111,6 @@ def get_blood_donors(
 
 @router.get("/requests/open")
 def get_open_blood_requests():
-    """
-    Powers the 'Live Urgent Requests' list on BloodBridge.tsx.
-    Returns urgentRequests shape:
-      { hospital, group, units, urgency, timeLeft, city }
-    """
     res = supabase.table("blood_requests") \
         .select("*, hospitals(name, city)") \
         .eq("status", "open") \
@@ -130,30 +123,29 @@ def get_open_blood_requests():
 
     for r in (res.data or []):
         hospital = r.get("hospitals") or {}
-        raw_ts = r["created_at"].replace("Z", "+00:00")
-        created = datetime.fromisoformat(raw_ts)
+        raw_ts   = r["created_at"].replace("Z", "+00:00")
+        created  = datetime.fromisoformat(raw_ts)
         elapsed  = now - created
         hours_elapsed = elapsed.total_seconds() / 3600
 
-        # Simulate "time left" based on urgency
-        urgency = (r.get("urgency") or "normal").upper()
+        urgency   = (r.get("urgency") or "normal").upper()
         max_hours = {"CRITICAL": 6, "URGENT": 12, "NORMAL": 24}.get(urgency, 12)
         time_left_hours = max(0, max_hours - hours_elapsed)
         h = int(time_left_hours)
         m = int((time_left_hours - h) * 60)
 
         results.append({
-            "id":       r["id"],
-            "hospital": hospital.get("name", "Unknown Hospital"),
-            "group":    r["blood_group"],
-            "units":    r.get("units", 1),
-            "urgency":  urgency,
-            "timeLeft": f"{h}h {m:02d}m",
+            "id":         r["id"],
+            "hospital":   hospital.get("name", "Unknown Hospital"),
+            "group":      r["blood_group"],
+            "units":      r.get("units", 1),
+            "urgency":    urgency,
+            "timeLeft":   f"{h}h {m:02d}m",
             "hours_left": time_left_hours,
-            "city":     hospital.get("city", ""),
-            "posted":   f"{int(elapsed.total_seconds() / 60)} min ago"
-                        if elapsed.total_seconds() < 3600
-                        else f"{int(hours_elapsed)}h ago",
+            "city":       hospital.get("city", ""),
+            "posted":     f"{int(elapsed.total_seconds() / 60)} min ago"
+                          if elapsed.total_seconds() < 3600
+                          else f"{int(hours_elapsed)}h ago",
         })
 
     return results
@@ -165,17 +157,15 @@ class BloodRequestBody(BaseModel):
     hospital_id: str
     blood_group: str
     units:       int = 1
-    urgency:     str = "urgent"   # critical | urgent | normal
+    urgency:     str = "urgent"
     lat:         Optional[float] = None
     lng:         Optional[float] = None
 
 
 @router.post("/requests")
 def post_blood_request(body: BloodRequestBody):
-    """
-    Called by 'Post Request' button on BloodBridge.tsx (hospital users).
-    Creates a request and SMS-alerts top 5 compatible nearby donors.
-    """
+    """Hospital posts a general blood request — notifies all compatible donors."""
+    # 1. Create the request
     res = supabase.table("blood_requests").insert({
         "hospital_id": body.hospital_id,
         "blood_group": body.blood_group,
@@ -191,35 +181,51 @@ def post_blood_request(body: BloodRequestBody):
 
     request_id = res.data[0]["id"]
 
-    # Find compatible donors & SMS top 5
-    donors = supabase.table("donors") \
-        .select("mobile, blood_group, name") \
+    # 2. Get hospital name for notifications + SMS
+    hosp = supabase.table("hospitals") \
+        .select("name, city") \
+        .eq("id", body.hospital_id) \
+        .single() \
+        .execute()
+    hosp_name = hosp.data["name"] if hosp.data else "A hospital"
+    hosp_city = hosp.data.get("city", "") if hosp.data else ""
+
+    # 3. Find all compatible, available donors
+    donors_res = supabase.table("donors") \
+        .select("id, mobile, blood_group, name") \
         .eq("is_available", True) \
-        .not_.is_("mobile", "null") \
         .execute()
 
-    mobiles = [
-        d["mobile"] for d in (donors.data or [])
-        if blood_compatible(d.get("blood_group", ""), body.blood_group)
-    ][:5]
+    alerted_mobiles = []
 
-    # Get hospital name for the SMS
-    hosp = supabase.table("hospitals").select("name, city").eq("id", body.hospital_id).single().execute()
-    hosp_name = hosp.data["name"] if hosp.data else "a hospital"
-    hosp_city = hosp.data["city"] if hosp.data else ""
+    for d in (donors_res.data or []):
+        if not blood_compatible(d.get("blood_group", ""), body.blood_group):
+            continue
 
-    msg = (
+        # In-app notification for every compatible donor
+        _create_notification(
+            user_id    = d["id"],
+            title      = f"🩸 Urgent: {body.blood_group} blood needed",
+            message    = f"{hosp_name}, {hosp_city} needs {body.units} unit(s). Can you help?",
+            notif_type = "blood_request",
+        )
+
+        if d.get("mobile"):
+            alerted_mobiles.append(d["mobile"])
+
+    # 4. SMS top 5
+    sms_msg = (
         f"🩸 URGENT: {body.blood_group} blood needed ({body.units} unit/s) at "
         f"{hosp_name}, {hosp_city}. "
         f"Reply YES or visit lifeforge.in. LifeForge Connect."
     )
-    sms_count = alert_donors(mobiles, msg)
+    sms_count = alert_donors(alerted_mobiles[:5], sms_msg)
 
     return {
-        "success":      True,
-        "request_id":   request_id,
+        "success":        True,
+        "request_id":     request_id,
         "donors_alerted": sms_count,
-        "message":      f"Request posted. {sms_count} donor(s) alerted via SMS.",
+        "message":        f"Request posted. {sms_count} donor(s) alerted via SMS.",
     }
 
 
@@ -232,25 +238,26 @@ class DonorRequestBody(BaseModel):
     units:       int = 1
     urgency:     str = "urgent"
 
+
 @router.post("/donors/request")
 def request_specific_donor(body: DonorRequestBody):
-    """
-    Called when a hospital clicks 'Request' on a specific donor card.
-    Creates a blood_request for the donor's blood group + sends SMS.
-    """
-    # 1. Validate hospital exists
+    """Hospital targets a specific donor — notifies that donor directly."""
+    # 1. Validate hospital
     try:
-        hosp = supabase.table("hospitals").select("id, name, city").eq("id", body.hospital_id).single().execute()
+        hosp = supabase.table("hospitals") \
+            .select("id, name, city") \
+            .eq("id", body.hospital_id) \
+            .single() \
+            .execute()
     except Exception:
         hosp = None
 
     if not hosp or not hosp.data:
-        # Hospital ID from auth might not match — try to find any hospital
         raise HTTPException(status_code=400, detail=f"Hospital ID not found: {body.hospital_id}")
 
-    hosp_name = hosp.data["name"]
-    hosp_city = hosp.data.get("city", "")
-    hospital_id = hosp.data["id"]  # Use the validated ID
+    hosp_name   = hosp.data["name"]
+    hosp_city   = hosp.data.get("city", "")
+    hospital_id = hosp.data["id"]
 
     # 2. Create the blood request
     try:
@@ -268,39 +275,61 @@ def request_specific_donor(body: DonorRequestBody):
         raise HTTPException(status_code=500, detail="Failed to create blood request")
 
     request_id = res.data[0]["id"]
+
+    # 3. Create match record linking this request to the specific donor
     try:
         supabase.table("matches").insert({
-            "request_id": request_id,
-            "donor_id": body.donor_id,
-            "status": "pending",
-            "module": "blood"
+            "request_id":  request_id,
+            "donor_id":    body.donor_id,
+            "status":      "pending",
+            "module":      "blood",
         }).execute()
     except Exception:
         pass
 
-    # 3. Get donor's mobile + send SMS
+    # 4. In-app notification to the specific donor
+    _create_notification(
+        user_id    = body.donor_id,
+        title      = f"🩸 {hosp_name} requested you specifically!",
+        message    = f"They need {body.blood_group} blood ({body.units} unit(s)). Please respond on LifeForge.",
+        notif_type = "blood_request",
+    )
+
+    # 5. Also notify the hospital that their request was sent
+    _create_notification(
+        user_id    = hospital_id,
+        title      = f"✅ Donor request sent",
+        message    = f"Your request for {body.blood_group} blood has been sent to the donor.",
+        notif_type = "blood_response",
+    )
+
+    # 6. SMS the donor
     try:
-        donor = supabase.table("donors").select("name, mobile").eq("id", body.donor_id).single().execute()
-        donor_name = donor.data["name"] if donor.data else "Donor"
+        donor = supabase.table("donors") \
+            .select("name, mobile") \
+            .eq("id", body.donor_id) \
+            .single() \
+            .execute()
+        donor_name   = donor.data["name"] if donor.data else "Donor"
         donor_mobile = donor.data.get("mobile") if donor.data else None
     except Exception:
-        donor_name = "Donor"
+        donor_name   = "Donor"
         donor_mobile = None
 
     sms_count = 0
     if donor_mobile:
-        msg = (
+        sms_msg = (
             f"🩸 {hosp_name}, {hosp_city} needs {body.blood_group} blood ({body.units} unit/s). "
             f"You were specifically requested! Reply YES or visit lifeforge.in. LifeForge Connect."
         )
-        sms_count = alert_donors([donor_mobile], msg)
+        sms_count = alert_donors([donor_mobile], sms_msg)
 
     return {
-        "success":        True,
-        "request_id":     request_id,
-        "donor_name":     donor_name,
-        "sms_sent":       sms_count > 0,
-        "message":        f"Request created for {donor_name}. {'SMS alert sent!' if sms_count else 'SMS not configured.'}",
+        "success":    True,
+        "request_id": request_id,
+        "donor_name": donor_name,
+        "sms_sent":   sms_count > 0,
+        "message":    f"Request sent to {donor_name}. {'SMS alert sent!' if sms_count else 'SMS not configured.'}",
     }
 
 
@@ -310,10 +339,6 @@ def request_specific_donor(body: DonorRequestBody):
 def get_requests_for_donor(
     donor_id: str = Query(..., description="The donor's user ID"),
 ):
-    """
-    Returns open blood requests that match a donor's blood group.
-    Powers the 'Urgent Requests Nearby' section on the donor dashboard.
-    """
     # 1. Get donor profile
     donor_res = supabase.table("donors") \
         .select("blood_group, city") \
@@ -325,8 +350,6 @@ def get_requests_for_donor(
         raise HTTPException(status_code=404, detail="Donor not found")
 
     donor_group = donor_res.data.get("blood_group")
-    donor_city = (donor_res.data.get("city") or "").lower()
-
     if not donor_group:
         return []
 
@@ -342,35 +365,34 @@ def get_requests_for_donor(
     results = []
 
     for r in (req_res.data or []):
-        # Only show requests matching donor's compatible blood group
         req_group = r.get("blood_group")
         if req_group and not blood_compatible(donor_group, req_group):
             continue
 
-        hospital = r.get("hospitals") or {}
-        raw_ts = r["created_at"].replace("Z", "+00:00")
-        created = datetime.fromisoformat(raw_ts)
-        elapsed = now - created
+        hospital      = r.get("hospitals") or {}
+        raw_ts        = r["created_at"].replace("Z", "+00:00")
+        created       = datetime.fromisoformat(raw_ts)
+        elapsed       = now - created
         hours_elapsed = elapsed.total_seconds() / 3600
 
-        urgency = (r.get("urgency") or "normal").upper()
-        max_hours = {"CRITICAL": 6, "URGENT": 12, "NORMAL": 24}.get(urgency, 12)
+        urgency         = (r.get("urgency") or "normal").upper()
+        max_hours       = {"CRITICAL": 6, "URGENT": 12, "NORMAL": 24}.get(urgency, 12)
         time_left_hours = max(0, max_hours - hours_elapsed)
         h = int(time_left_hours)
         m = int((time_left_hours - h) * 60)
 
         results.append({
-            "id":       r["id"],
-            "hospital": hospital.get("name", "Unknown Hospital"),
-            "group":    req_group,
-            "units":    r.get("units", 1),
-            "urgency":  urgency,
-            "timeLeft": f"{h}h {m:02d}m",
+            "id":         r["id"],
+            "hospital":   hospital.get("name", "Unknown Hospital"),
+            "group":      req_group,
+            "units":      r.get("units", 1),
+            "urgency":    urgency,
+            "timeLeft":   f"{h}h {m:02d}m",
             "hours_left": time_left_hours,
-            "city":     hospital.get("city", ""),
-            "posted":   f"{int(elapsed.total_seconds() / 60)} min ago"
-                        if elapsed.total_seconds() < 3600
-                        else f"{int(hours_elapsed)}h ago",
+            "city":       hospital.get("city", ""),
+            "posted":     f"{int(elapsed.total_seconds() / 60)} min ago"
+                          if elapsed.total_seconds() < 3600
+                          else f"{int(hours_elapsed)}h ago",
         })
 
     return results
@@ -380,10 +402,6 @@ def get_requests_for_donor(
 
 @router.get("/shortage")
 def get_blood_shortage():
-    """
-    Shortage prediction widget — compares open requests vs available donors
-    per blood group. Returns groups with deficit > 0, sorted by severity.
-    """
     req_res   = supabase.table("blood_requests").select("blood_group").eq("status", "open").execute()
     donor_res = supabase.table("donors").select("blood_group").eq("is_available", True).execute()
 
@@ -400,7 +418,8 @@ def get_blood_shortage():
             donor_count[g] = donor_count.get(g, 0) + 1
 
     all_groups = set(req_count) | set(donor_count)
-    shortages = []
+    shortages  = []
+
     for g in all_groups:
         reqs   = req_count.get(g, 0)
         donors = donor_count.get(g, 0)

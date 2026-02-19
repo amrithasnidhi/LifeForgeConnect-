@@ -13,8 +13,6 @@
  * ──────────────────────────────────────────────────────────────────
  */
 
-// In dev, BASE is empty so requests go to the same Vite origin (proxied → FastAPI).
-// In production, set VITE_API_URL to your deployed backend URL.
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
 // ── Core fetch helper ─────────────────────────────────────────────────────────
@@ -28,7 +26,6 @@ async function req<T>(
     let url: URL | string;
 
     if (BASE) {
-        // Absolute URL - direct connection to backend
         const urlObj = new URL(BASE + path);
         if (params) {
             Object.entries(params).forEach(([k, v]) => {
@@ -37,7 +34,6 @@ async function req<T>(
         }
         url = urlObj.toString();
     } else {
-        // Relative path - handled by Vite proxy (no /api prefix needed)
         let relativePath = path;
         if (params) {
             const searchParams = new URLSearchParams();
@@ -52,7 +48,6 @@ async function req<T>(
 
     const headers: HeadersInit = { "Content-Type": "application/json" };
 
-    // Attach JWT token if stored (set after login)
     const token = localStorage.getItem("lf_token");
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -75,6 +70,15 @@ const post = <T>(path: string, body?: unknown) => req<T>("POST", path, body);
 
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface Notification {
+    id: string;
+    title: string;
+    message: string;
+    type: "blood_request" | "blood_response" | "general";
+    created_at: string;
+    is_read: boolean;
+}
 
 export interface PlatformStats {
     matches_today: number;
@@ -237,6 +241,17 @@ export const api = {
     },
 
 
+    // ── Notifications ───────────────────────────────────────────────────────────
+
+    notifications: {
+        get: (userId: string) =>
+            get<Notification[]>(`/notifications/${userId}`),
+
+        markRead: (notificationIds: string[]) =>
+            post<{ success: boolean }>("/notifications/mark-read", { ids: notificationIds }),
+    },
+
+
     // ── BloodBridge ─────────────────────────────────────────────────────────────
 
     blood: {
@@ -363,6 +378,7 @@ export const api = {
     },
 
 };
+
 
 // ── Convenience helpers ───────────────────────────────────────────────────────
 
