@@ -7,7 +7,7 @@ Endpoints consumed by PlateletAlert.tsx:
   POST /platelet/requests       → post a new platelet request (Add Patient)
 """
 
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
@@ -43,9 +43,9 @@ def get_open_platelet_requests():
 
     for r in (res.data or []):
         hospital = r.get("hospitals") or {}
-        created  = datetime.fromisoformat(r["created_at"].replace("Z", ""))
+        created  = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
         expiry   = created + timedelta(days=PLATELET_VIABILITY_DAYS)
-        now      = datetime.utcnow()
+        now      = datetime.now(timezone.utc)
         delta    = expiry - now
         days_left  = max(0, delta.days)
         hours_left = max(0, int(delta.total_seconds() / 3600))

@@ -111,12 +111,15 @@ def get_blood_donors(
 
 @router.get("/requests/open")
 def get_open_blood_requests():
-    res = supabase.table("blood_requests") \
-        .select("*, hospitals(name, city)") \
-        .eq("status", "open") \
-        .order("created_at", desc=True) \
-        .limit(20) \
-        .execute()
+    try:
+        res = supabase.table("blood_requests") \
+            .select("*, hospitals(name, city)") \
+            .eq("status", "open") \
+            .order("created_at", desc=True) \
+            .limit(20) \
+            .execute()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Database error: {e}")
 
     results = []
     now = datetime.now(timezone.utc)
