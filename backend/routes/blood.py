@@ -148,6 +148,7 @@ class BloodRequestBody(BaseModel):
     blood_group: str
     units:       int = 1
     urgency:     str = "urgent"   # critical | urgent | normal
+    donor_id:    Optional[str] = None
     lat:         Optional[float] = None
     lng:         Optional[float] = None
 
@@ -156,8 +157,11 @@ class BloodRequestBody(BaseModel):
 def post_blood_request(body: BloodRequestBody):
     """
     Called by 'Post Request' button on BloodBridge.tsx (hospital users).
-    Creates a request and SMS-alerts top 5 compatible nearby donors.
+    1. Creates a request in blood_requests.
+    2. If donor_id provided, creates a record in 'matches' and alerts that donor.
+    3. If no donor_id, SMS-alerts top 5 compatible nearby donors.
     """
+    # Create the request
     res = supabase.table("blood_requests").insert({
         "hospital_id": body.hospital_id,
         "blood_group": body.blood_group,
@@ -172,30 +176,47 @@ def post_blood_request(body: BloodRequestBody):
         raise HTTPException(status_code=500, detail="Failed to create blood request")
 
     request_id = res.data[0]["id"]
-
-    # Find compatible donors & SMS top 5
-    donors = supabase.table("donors") \
-        .select("mobile, blood_group, name") \
-        .eq("is_available", True) \
-        .not_.is_("mobile", "null") \
-        .execute()
-
-    mobiles = [
-        d["mobile"] for d in (donors.data or [])
-        if blood_compatible(d.get("blood_group", ""), body.blood_group)
-    ][:5]
+    sms_count = 0
 
     # Get hospital name for the SMS
     hosp = supabase.table("hospitals").select("name, city").eq("id", body.hospital_id).single().execute()
     hosp_name = hosp.data["name"] if hosp.data else "a hospital"
     hosp_city = hosp.data["city"] if hosp.data else ""
 
-    msg = (
-        f"🩸 URGENT: {body.blood_group} blood needed ({body.units} unit/s) at "
-        f"{hosp_name}, {hosp_city}. "
-        f"Reply YES or visit lifeforge.in. LifeForge Connect."
-    )
-    sms_count = alert_donors(mobiles, msg)
+    if body.donor_id:
+        # Direct request to a specific donor
+        supabase.table("matches").insert({
+            "module": "blood",
+            "donor_id": body.donor_id,
+            "request_id": request_id,
+            "status": "pending"
+        }).execute()
+        
+        donor = supabase.table("donors").select("mobile").eq("id", body.donor_id).single().execute()
+        if donor.data and donor.data.get("mobile"):
+            msg = (
+                f"🩸 DIRECT REQUEST: {body.blood_group} needed at {hosp_name}, {hosp_city}. "
+                f"You were specifically matched! Reply YES to confirm. LifeForge."
+            )
+            sms_count = alert_donors([donor.data["mobile"]], msg)
+    else:
+        # Broadcast to compatible donors
+        donors = supabase.table("donors") \
+            .select("mobile, blood_group, name") \
+            .eq("is_available", True) \
+            .not_.is_("mobile", "null") \
+            .execute()
+
+        mobiles = [
+            d["mobile"] for d in (donors.data or [])
+            if blood_compatible(d.get("blood_group", ""), body.blood_group)
+        ][:5]
+
+        msg = (
+            f"🩸 URGENT: {body.blood_group} blood needed at {hosp_name}, {hosp_city}. "
+            f"Reply YES or visit lifeforge.in. LifeForge Connect."
+        )
+        sms_count = alert_donors(mobiles, msg)
 
     return {
         "success":      True,
