@@ -385,3 +385,77 @@ export const api = {
 export const getCurrentUserId = () => localStorage.getItem("lf_user_id") ?? "";
 export const getCurrentRole = () => localStorage.getItem("lf_role") ?? "donor";
 export const isLoggedIn = () => !!localStorage.getItem("lf_token");
+
+
+// ── AI Chat ─────────────────────────────────────────────────────────────────
+
+export interface AIChatMessage {
+    role: "user" | "assistant";
+    content: string;
+}
+
+/**
+ * Stream a response from LifeForge AI.
+ * Calls the backend /ai/chat endpoint which proxies to Gemini.
+ * Returns a ReadableStream reader or falls back to sync.
+ */
+export async function streamAIChat(
+    messages: AIChatMessage[],
+    isUrgent = false,
+    onChunk: (text: string) => void,
+    onDone: () => void,
+    onError: (err: string) => void,
+) {
+    const url = `${BASE}/ai/chat`;
+
+    // Timeout after 30s if no response at all
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: messages.map(m => ({ role: m.role, content: m.content })),
+                is_urgent: isUrgent,
+            }),
+            signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            const detail = err.detail ?? "AI service error";
+            if (res.status === 429) {
+                onError("Rate limit reached. Please wait a moment and try again.");
+            } else {
+                onError(detail);
+            }
+            return;
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) {
+            onError("Streaming not supported");
+            return;
+        }
+
+        const decoder = new TextDecoder();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const text = decoder.decode(value, { stream: true });
+            onChunk(text);
+        }
+        onDone();
+    } catch (err: any) {
+        clearTimeout(timeout);
+        if (err.name === "AbortError") {
+            onError("Request timed out. The AI service may be busy — please try again.");
+        } else {
+            onError(err.message ?? "Failed to connect to AI service");
+        }
+    }
+}

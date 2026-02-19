@@ -8,7 +8,7 @@ Run locally:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import auth, blood, thal, platelet, marrow, organ, milk, dashboard, notifications
+from routes import auth, blood, thal, platelet, marrow, organ, milk, dashboard, notifications, ai_chat
 
 app = FastAPI(
     title="LifeForge Connect API",
@@ -35,6 +35,7 @@ app.include_router(organ.router,         prefix="/organ",         tags=["LastGif
 app.include_router(milk.router,          prefix="/milk",          tags=["MilkBridge"])
 app.include_router(dashboard.router,     prefix="/dashboard",     tags=["Dashboard"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(ai_chat.router,       prefix="/ai",            tags=["AI Companion"])
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────

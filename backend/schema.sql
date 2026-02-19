@@ -148,6 +148,19 @@ create table if not exists milk_bank (
   created_at       timestamptz default now()
 );
 
+-- ── Notifications ─────────────────────────────────────────────────────────────
+
+create table if not exists notifications (
+  id          uuid default gen_random_uuid() primary key,
+  user_id     uuid not null,               -- donor or hospital ID
+  title       text not null,
+  message     text,
+  type        text default 'info',         -- 'info' | 'alert' | 'success' | 'warning'
+  module      text,                        -- 'blood' | 'platelet' | 'marrow' | 'organ' | 'milk' | 'thal'
+  is_read     boolean default false,
+  created_at  timestamptz default now()
+);
+
 -- ── Matches (central log for all 6 modules) ───────────────────────────────────
 
 create table if not exists matches (
@@ -166,6 +179,7 @@ alter publication supabase_realtime add table blood_requests;
 alter publication supabase_realtime add table platelet_requests;
 alter publication supabase_realtime add table organ_requests;
 alter publication supabase_realtime add table matches;
+alter publication supabase_realtime add table notifications;
 
 -- ── Row Level Security ─────────────────────────────────────────────────────────
 -- Backend uses SERVICE ROLE KEY → bypasses RLS completely.
