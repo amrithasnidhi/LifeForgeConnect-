@@ -1,27 +1,78 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { MapPin, Clock, AlertTriangle, CheckCircle2, Plus, Filter, ArrowLeft } from "lucide-react";
+import { MapPin, Clock, AlertTriangle, CheckCircle2, Plus, Filter, ArrowLeft, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BloodBridgeMap from "@/components/BloodBridgeMap";
-
-const donors = [
-  { id: 1, name: "Rahul M.", group: "O-", distance: "1.2 km", trust: 4.9, lastDonated: "92 days ago", available: true, city: "Andheri, Mumbai", lat: 19.1197, lng: 72.8464 },
-  { id: 2, name: "Sneha P.", group: "O-", distance: "2.7 km", trust: 4.7, lastDonated: "95 days ago", available: true, city: "Bandra, Mumbai", lat: 19.0544, lng: 72.8402 },
-  { id: 3, name: "Vikram S.", group: "O-", distance: "3.4 km", trust: 4.8, lastDonated: "100 days ago", available: true, city: "Juhu, Mumbai", lat: 19.1075, lng: 72.8263 },
-  { id: 4, name: "Anita K.", group: "O-", distance: "4.8 km", trust: 4.6, lastDonated: "98 days ago", available: false, city: "Powai, Mumbai", lat: 19.1176, lng: 72.9060 },
-];
-
-const urgentRequests = [
-  { hospital: "KEM Hospital", group: "O-", units: 3, urgency: "CRITICAL", timeLeft: "2h 14m", city: "Parel, Mumbai" },
-  { hospital: "Tata Memorial", group: "AB+", units: 2, urgency: "URGENT", timeLeft: "5h 40m", city: "Parel, Mumbai" },
-  { hospital: "Lilavati Hospital", group: "B-", units: 1, urgency: "HIGH", timeLeft: "9h 00m", city: "Bandra, Mumbai" },
-];
+import { api, BloodDonor, BloodRequest } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function BloodBridge() {
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [locationInput, setLocationInput] = useState("");
+  const [donors, setDonors] = useState<BloodDonor[]>([]);
+  const [urgentRequests, setUrgentRequests] = useState<BloodRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [reqs, initialDonors] = await Promise.all([
+          api.blood.getOpenRequests(),
+          api.blood.getDonors({ limit: 4 })
+        ]);
+        setUrgentRequests(reqs);
+        setDonors(initialDonors);
+      } catch (error) {
+        console.error("Failed to fetch initial data", error);
+        toast.error("Could not load latest requests");
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleSearch = async () => {
+    setIsLoading(true);
+    try {
+      // Determine if input is pincode (numeric, 6 digits) or city
+      const isPincode = /^\d{6}$/.test(locationInput.trim());
+      const searchParams = {
+        blood_group: selectedGroup || undefined,
+        city: !isPincode ? locationInput.trim() || undefined : undefined,
+        pincode: isPincode ? locationInput.trim() : undefined,
+        limit: 20
+      };
+
+      const results = await api.blood.getDonors(searchParams);
+      setDonors(results);
+
+      if (results.length === 0) {
+        toast.info("No matching donors found in this area.");
+      } else {
+        toast.success(`Found ${results.length} matching donors!`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to search donors");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequest = (donor: BloodDonor) => {
+    if (!donor.eligible_to_donate) {
+      toast.error(`${donor.name} is busy or not eligible yet.`);
+      return;
+    }
+    toast.success(`Request sent to ${donor.name}! They will receive an SMS alert.`);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -67,7 +118,11 @@ export default function BloodBridge() {
                     <label className="font-body text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Blood Group</label>
                     <div className="grid grid-cols-4 gap-1.5">
                       {["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map((g) => (
-                        <button key={g} className="h-9 rounded-lg border-2 border-border hover:border-blood hover:bg-blood/10 font-display text-xs font-bold transition-all">
+                        <button
+                          key={g}
+                          onClick={() => setSelectedGroup(selectedGroup === g ? null : g)}
+                          className={`h-9 rounded-lg border-2 font-display text-xs font-bold transition-all ${selectedGroup === g ? "border-blood bg-blood text-white" : "border-border hover:border-blood hover:bg-blood/10"}`}
+                        >
                           {g}
                         </button>
                       ))}
@@ -75,14 +130,23 @@ export default function BloodBridge() {
                   </div>
                   <div>
                     <label className="font-body text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Location / PIN</label>
-                    <Input placeholder="Enter city or PIN code" className="h-10 rounded-xl font-body" />
+                    <Input
+                      placeholder="Enter city or 6-digit PIN"
+                      className="h-10 rounded-xl font-body"
+                      value={locationInput}
+                      onChange={(e) => setLocationInput(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="font-body text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Units Required</label>
-                    <Input type="number" placeholder="e.g. 2" className="h-10 rounded-xl font-body" />
+                    <Input type="number" placeholder="e.g. 2" className="h-10 rounded-xl font-body" defaultValue={1} />
                   </div>
-                  <Button className="w-full bg-blood text-primary-foreground font-body font-bold rounded-xl h-11">
-                    Search Donors
+                  <Button
+                    onClick={handleSearch}
+                    disabled={isLoading}
+                    className="w-full bg-blood text-primary-foreground font-body font-bold rounded-xl h-11"
+                  >
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Search Donors"}
                   </Button>
                 </div>
               </div>
@@ -105,9 +169,14 @@ export default function BloodBridge() {
                   <AlertTriangle className="w-5 h-5 text-blood animate-pulse" /> Live Urgent Requests
                 </h3>
                 <div className="space-y-3">
+                  {urgentRequests.length === 0 && !isInitialLoading && (
+                    <div className="p-8 text-center border-2 border-dashed rounded-xl text-muted-foreground font-body">
+                      No active urgent requests at the moment.
+                    </div>
+                  )}
                   {urgentRequests.map((req, i) => (
                     <motion.div
-                      key={i}
+                      key={req.id || i}
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.1 }}
@@ -143,11 +212,19 @@ export default function BloodBridge() {
 
               {/* Donor cards */}
               <div>
-                <h3 className="font-display text-xl font-bold text-foreground mb-4">Available Donors (O-)</h3>
+                <h3 className="font-display text-xl font-bold text-foreground mb-4">
+                  {selectedGroup ? `Available Donors (${selectedGroup})` : "Available Donors"}
+                </h3>
+                {donors.length === 0 && !isLoading && (
+                  <div className="p-12 text-center bg-muted/20 border-2 border-dashed rounded-2xl">
+                    <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
+                    <p className="text-muted-foreground font-body">No donors found. Try changing your search filters.</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {donors.map((donor, i) => (
                     <motion.div
-                      key={i}
+                      key={donor.id || i}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.08 }}
@@ -171,14 +248,18 @@ export default function BloodBridge() {
                         <span className="font-bold text-blood">{donor.group}</span>
                         <span><MapPin className="w-3 h-3 inline" /> {donor.distance}</span>
                         <span>⭐ {donor.trust}</span>
-                        <span>Last: {donor.lastDonated}</span>
+                        <span>Last: {donor.last_donated}</span>
                       </div>
                       {donor.available && (
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" className="flex-1 border-border font-body text-xs rounded-lg">
                             View Profile
                           </Button>
-                          <Button size="sm" className="flex-1 bg-blood text-primary-foreground font-body text-xs rounded-lg">
+                          <Button
+                            size="sm"
+                            onClick={() => handleRequest(donor)}
+                            className="flex-1 bg-blood text-primary-foreground font-body text-xs rounded-lg"
+                          >
                             <CheckCircle2 className="w-3 h-3 mr-1" /> Request
                           </Button>
                         </div>
@@ -201,9 +282,9 @@ export default function BloodBridge() {
                       blood_group: d.group,
                       city: d.city,
                       trust_score: d.trust,
-                      distance_km: parseFloat(d.distance),
-                      lat: d.lat,
-                      lng: d.lng,
+                      distance_km: d.distance_km || 0,
+                      lat: 0, // In a real app we'd use actual lat/lng from backend
+                      lng: 0,
                     }))}
                   />
                 </div>
@@ -216,3 +297,4 @@ export default function BloodBridge() {
     </div>
   );
 }
+
