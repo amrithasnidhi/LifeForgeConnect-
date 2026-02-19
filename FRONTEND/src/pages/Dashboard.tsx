@@ -238,10 +238,10 @@ function HospitalDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
-  const hospitalId = getCurrentUserId();
   const navigate = useNavigate();
 
   useEffect(() => {
+    const hospitalId = getCurrentUserId();
     if (!hospitalId) {
       setLoading(false);
       return;
@@ -251,7 +251,7 @@ function HospitalDashboard() {
       .then(setData)
       .catch((e) => setError(e.message || "Failed to load dashboard"))
       .finally(() => setLoading(false));
-  }, [hospitalId]);
+  }, []);
 
   if (loading) {
     return (
