@@ -82,27 +82,29 @@ export default function LoginPage() {
               <span className="font-display font-bold text-xl text-foreground">LifeForge Connect</span>
             </div>
 
-            <h1 className="font-display text-3xl font-bold text-foreground mb-1">Sign In</h1>
-            <p className="font-body text-sm text-muted-foreground mb-7">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-primary font-semibold hover:underline">
-                Register now
-              </Link>
-            </p>
+            <h1 className="font-display text-3xl font-bold text-foreground mb-1">
+              Sign In {mode === "admin" && "as Admin"}
+            </h1>
+            {mode !== "admin" && (
+              <p className="font-body text-sm text-muted-foreground mb-7">
+                Don't have an account?{" "}
+                <Link to="/register" className="text-primary font-semibold hover:underline">
+                  Register now
+                </Link>
+              </p>
+            )}
 
-            {/* Mode tabs */}
-            <Tabs defaultValue={defaultMode} onValueChange={(v) => setMode(v as Mode)} className="mb-6">
-              <TabsList className="w-full grid grid-cols-3 bg-muted rounded-xl h-11">
-                <TabsTrigger value="donor" className="rounded-lg font-body font-semibold text-sm">
-                  Donor
-                </TabsTrigger>
-                <TabsTrigger value="hospital" className="rounded-lg font-body font-semibold text-sm">
-                  Hospital
-                </TabsTrigger>
-                <TabsTrigger value="admin" className="rounded-lg font-body font-semibold text-sm">
-                  Admin
-                </TabsTrigger>
-              </TabsList>
+            <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="mb-6 mt-4">
+              {mode !== "admin" && (
+                <TabsList className="w-full grid grid-cols-2 bg-muted rounded-xl h-11">
+                  <TabsTrigger value="donor" className="rounded-lg font-body font-semibold text-sm">
+                    Donor
+                  </TabsTrigger>
+                  <TabsTrigger value="hospital" className="rounded-lg font-body font-semibold text-sm">
+                    Hospital
+                  </TabsTrigger>
+                </TabsList>
+              )}
 
               {["donor", "hospital", "admin"].map((tab) => (
                 <TabsContent key={tab} value={tab} className="mt-6 space-y-4">
@@ -193,6 +195,24 @@ export default function LoginPage() {
                 </TabsContent>
               ))}
             </Tabs>
+
+            <p className="font-body text-xs text-muted-foreground text-center mt-6">
+              {mode === "admin" ? (
+                <button
+                  onClick={() => setMode("donor")}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Back to User login
+                </button>
+              ) : (
+                <button
+                  onClick={() => setMode("admin")}
+                  className="text-primary font-medium hover:underline opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  Administrator Login
+                </button>
+              )}
+            </p>
 
             <p className="font-body text-xs text-muted-foreground text-center mt-4">
               By signing in, you agree to our{" "}
