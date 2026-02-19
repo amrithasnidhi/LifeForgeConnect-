@@ -12,12 +12,25 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
     proxy: {
+<<<<<<< Updated upstream
       // Forward requests starting with /api to FastAPI
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+=======
+      // Trailing slash ensures we only match actual API calls, not frontend routes.
+      // e.g. "/blood/" matches "/blood/requests" but NOT "/blood-bridge"
+      "/auth": { target: "http://localhost:8000", changeOrigin: true },
+      "/blood/": { target: "http://localhost:8000", changeOrigin: true },
+      "/thal/": { target: "http://localhost:8000", changeOrigin: true },
+      "/platelet/": { target: "http://localhost:8000", changeOrigin: true },
+      "/marrow/": { target: "http://localhost:8000", changeOrigin: true },
+      "/organ/": { target: "http://localhost:8000", changeOrigin: true },
+      "/milk/": { target: "http://localhost:8000", changeOrigin: true },
+      "/stats": { target: "http://localhost:8000", changeOrigin: true },
+>>>>>>> Stashed changes
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
@@ -27,4 +40,3 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
-

@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/AuthContext";
 
-const modules = [
-  { name: "BloodBridge", path: "/blood-bridge", emoji: "🩸", color: "text-blood" },
-  { name: "ThalCare", path: "/thal-care", emoji: "💉", color: "text-thal" },
-  { name: "PlateletAlert", path: "/platelet-alert", emoji: "⏱️", color: "text-platelet" },
-  { name: "MarrowMatch", path: "/marrow-match", emoji: "🧬", color: "text-marrow" },
-  { name: "LastGift", path: "/last-gift", emoji: "🫁", color: "text-organ" },
-  { name: "MilkBridge", path: "/milk-bridge", emoji: "🍼", color: "text-milk" },
+const ALL_MODULES = [
+  { name: "BloodBridge", path: "/blood-bridge", emoji: "🩸", color: "text-blood", donorType: "blood" },
+  { name: "ThalCare", path: "/thal-care", emoji: "💉", color: "text-thal", donorType: "plasma" },
+  { name: "PlateletAlert", path: "/platelet-alert", emoji: "⏱️", color: "text-platelet", donorType: "platelet" },
+  { name: "MarrowMatch", path: "/marrow-match", emoji: "🧬", color: "text-marrow", donorType: "marrow" },
+  { name: "LastGift", path: "/last-gift", emoji: "🫁", color: "text-organ", donorType: "organ" },
+  { name: "MilkBridge", path: "/milk-bridge", emoji: "🍼", color: "text-milk", donorType: "milk" },
 ];
 
 export default function Navbar() {
@@ -21,7 +21,21 @@ export default function Navbar() {
   const [modulesOpen, setModulesOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { role, userName, logout } = useAuth();
+  const { role, userName, profile, logout } = useAuth();
+
+  // Derive visible modules based on role:
+  // - logged out → none
+  // - donor → only modules matching their selected donor_types
+  // - hospital / admin → all 6
+  const visibleModules = (() => {
+    if (!role) return [];
+    if (role === "donor") {
+      const donorTypes = profile?.donor_types ?? [];
+      return ALL_MODULES.filter((m) => donorTypes.includes(m.donorType));
+    }
+    // hospital or admin
+    return ALL_MODULES;
+  })();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -39,8 +53,8 @@ export default function Navbar() {
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || !isHome
-        ? "bg-card/95 backdrop-blur-md shadow-card border-b border-border"
-        : "bg-transparent"
+          ? "bg-card/95 backdrop-blur-md shadow-card border-b border-border"
+          : "bg-transparent"
         }`}
     >
       <div className="container mx-auto px-4">
@@ -68,51 +82,53 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-6">
-            {/* Modules dropdown */}
-            <div className="relative">
-              <button
-                onMouseEnter={() => setModulesOpen(true)}
-                onMouseLeave={() => setModulesOpen(false)}
-                className={`flex items-center gap-1 font-body text-sm font-medium transition-colors ${scrolled || !isHome
-                  ? "text-foreground hover:text-primary"
-                  : "text-primary-foreground/90 hover:text-primary-foreground"
-                  }`}
-              >
-                Modules <ChevronDown className="w-4 h-4" />
-              </button>
-              <AnimatePresence>
-                {modulesOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    transition={{ duration: 0.15 }}
-                    onMouseEnter={() => setModulesOpen(true)}
-                    onMouseLeave={() => setModulesOpen(false)}
-                    className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-card rounded-xl shadow-primary-lg border border-border p-2"
-                  >
-                    {modules.map((m) => (
-                      <Link
-                        key={m.path}
-                        to={m.path}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors"
-                      >
-                        <span className="text-xl">{m.emoji}</span>
-                        <span className={`font-body text-sm font-semibold ${m.color}`}>
-                          {m.name}
-                        </span>
-                      </Link>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Modules dropdown — only shown when there are visible modules */}
+            {visibleModules.length > 0 && (
+              <div className="relative">
+                <button
+                  onMouseEnter={() => setModulesOpen(true)}
+                  onMouseLeave={() => setModulesOpen(false)}
+                  className={`flex items-center gap-1 font-body text-sm font-medium transition-colors ${scrolled || !isHome
+                      ? "text-foreground hover:text-primary"
+                      : "text-primary-foreground/90 hover:text-primary-foreground"
+                    }`}
+                >
+                  Modules <ChevronDown className="w-4 h-4" />
+                </button>
+                <AnimatePresence>
+                  {modulesOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.15 }}
+                      onMouseEnter={() => setModulesOpen(true)}
+                      onMouseLeave={() => setModulesOpen(false)}
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-card rounded-xl shadow-primary-lg border border-border p-2"
+                    >
+                      {visibleModules.map((m) => (
+                        <Link
+                          key={m.path}
+                          to={m.path}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted transition-colors"
+                        >
+                          <span className="text-xl">{m.emoji}</span>
+                          <span className={`font-body text-sm font-semibold ${m.color}`}>
+                            {m.name}
+                          </span>
+                        </Link>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
 
             <Link
               to="/dashboard"
               className={`font-body text-sm font-medium transition-colors ${scrolled || !isHome
-                ? "text-foreground hover:text-primary"
-                : "text-primary-foreground/90 hover:text-primary-foreground"
+                  ? "text-foreground hover:text-primary"
+                  : "text-primary-foreground/90 hover:text-primary-foreground"
                 }`}
             >
               Dashboard
@@ -121,8 +137,8 @@ export default function Navbar() {
             <Link
               to="/ai-companion"
               className={`font-body text-sm font-bold flex items-center gap-1.5 transition-colors ${scrolled || !isHome
-                ? "text-primary hover:opacity-80"
-                : "text-primary-foreground hover:opacity-80"
+                  ? "text-primary hover:opacity-80"
+                  : "text-primary-foreground hover:opacity-80"
                 }`}
             >
               <span className="animate-pulse text-lg">✨</span> AI Companion
@@ -135,8 +151,8 @@ export default function Navbar() {
                     variant="outline"
                     size="sm"
                     className={`font-body font-semibold border-2 ${scrolled || !isHome
-                      ? "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                      : "border-primary-foreground/60 text-primary-foreground hover:bg-primary-foreground/10"
+                        ? "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                        : "border-primary-foreground/60 text-primary-foreground hover:bg-primary-foreground/10"
                       }`}
                   >
                     Login
@@ -153,7 +169,10 @@ export default function Navbar() {
               </>
             ) : (
               <div className="flex items-center gap-3">
-                <div className={`flex items-center gap-2 font-body text-sm font-bold ${scrolled || !isHome ? "text-foreground" : "text-primary-foreground"}`}>
+                <div
+                  className={`flex items-center gap-2 font-body text-sm font-bold ${scrolled || !isHome ? "text-foreground" : "text-primary-foreground"
+                    }`}
+                >
                   <User className="w-4 h-4 text-primary" />
                   {userName}
                 </div>
@@ -161,7 +180,10 @@ export default function Navbar() {
                   onClick={handleLogout}
                   variant="ghost"
                   size="sm"
-                  className={`font-body font-bold text-xs gap-1.5 ${scrolled || !isHome ? "text-muted-foreground hover:text-red-500" : "text-primary-foreground/70 hover:text-primary-foreground"}`}
+                  className={`font-body font-bold text-xs gap-1.5 ${scrolled || !isHome
+                      ? "text-muted-foreground hover:text-red-500"
+                      : "text-primary-foreground/70 hover:text-primary-foreground"
+                    }`}
                 >
                   <LogOut className="w-3.5 h-3.5" /> Logout
                 </Button>
@@ -199,7 +221,7 @@ export default function Navbar() {
                   </div>
                 )}
 
-                {modules.map((m) => (
+                {visibleModules.map((m) => (
                   <Link
                     key={m.path}
                     to={m.path}
@@ -210,6 +232,7 @@ export default function Navbar() {
                     <span className={`font-body font-semibold text-sm ${m.color}`}>{m.name}</span>
                   </Link>
                 ))}
+
                 <Link
                   to="/ai-companion"
                   onClick={() => setIsOpen(false)}
@@ -258,4 +281,3 @@ export default function Navbar() {
     </nav>
   );
 }
-
