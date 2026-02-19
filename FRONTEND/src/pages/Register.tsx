@@ -40,9 +40,8 @@ function DonorRegister() {
         {[1, 2, 3].map((s) => (
           <div
             key={s}
-            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-              s <= step ? "bg-gradient-primary" : "bg-muted"
-            }`}
+            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${s <= step ? "bg-gradient-primary" : "bg-muted"
+              }`}
           />
         ))}
       </div>
@@ -98,11 +97,10 @@ function DonorRegister() {
                   <button
                     key={g}
                     onClick={() => setGender(g)}
-                    className={`flex-1 h-11 rounded-xl border-2 font-body text-xs font-semibold transition-all ${
-                      gender === g
+                    className={`flex-1 h-11 rounded-xl border-2 font-body text-xs font-semibold transition-all ${gender === g
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border text-muted-foreground hover:border-primary/40"
-                    }`}
+                      }`}
                   >
                     {g}
                   </button>
@@ -144,11 +142,10 @@ function DonorRegister() {
                 <button
                   key={bg}
                   onClick={() => setBloodGroup(bg)}
-                  className={`h-11 rounded-xl border-2 font-display font-bold text-sm transition-all ${
-                    bloodGroup === bg
+                  className={`h-11 rounded-xl border-2 font-display font-bold text-sm transition-all ${bloodGroup === bg
                       ? "border-blood bg-blood/10 text-blood"
                       : "border-border text-muted-foreground hover:border-blood/30"
-                  }`}
+                    }`}
                 >
                   {bg}
                 </button>
@@ -165,11 +162,10 @@ function DonorRegister() {
                   key={type.id}
                   onClick={() => toggleType(type.id)}
                   disabled={type.womenOnly && gender === "Male"}
-                  className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                    selected.includes(type.id)
+                  className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${selected.includes(type.id)
                       ? "border-primary bg-primary/8 text-primary"
                       : "border-border hover:border-primary/30"
-                  }`}
+                    }`}
                 >
                   <span className="text-xl">{type.emoji}</span>
                   <div>
@@ -268,30 +264,135 @@ function DonorRegister() {
   );
 }
 
+const orgTypes = [
+  {
+    id: "hospital",
+    label: "Hospital",
+    emoji: "🏥",
+    nameLabel: "Hospital Name",
+    namePlaceholder: "Apollo Hospitals, Mumbai",
+    regLabel: "Registration Number",
+    regPlaceholder: "MH/HOS/XXXX",
+    licenseLabel: "License Number",
+    licensePlaceholder: "Hospital License No.",
+    docsHint: "Registration cert, License, NABH docs",
+    contactLabel: "Contact Person",
+    contactPlaceholder: "Dr. Priya Menon",
+    emailPlaceholder: "admin@hospital.in",
+    submitLabel: "Register Hospital",
+  },
+  {
+    id: "bloodbank",
+    label: "Blood Bank",
+    emoji: "🩸",
+    nameLabel: "Blood Bank Name",
+    namePlaceholder: "City Blood Bank, Delhi",
+    regLabel: "Registration Number",
+    regPlaceholder: "BB/REG/XXXX",
+    licenseLabel: "Blood Bank License",
+    licensePlaceholder: "CDSCO License No.",
+    docsHint: "CDSCO License, Registration cert, SOP docs",
+    contactLabel: "In-charge Name",
+    contactPlaceholder: "Dr. Ramesh Kumar",
+    emailPlaceholder: "contact@bloodbank.in",
+    submitLabel: "Register Blood Bank",
+  },
+  {
+    id: "orphanage",
+    label: "Orphanage",
+    emoji: "🏠",
+    nameLabel: "Orphanage Name",
+    namePlaceholder: "Hope Children's Home, Pune",
+    regLabel: "Trust/Society Reg. No.",
+    regPlaceholder: "TR/XXXX/XXXX",
+    licenseLabel: "CARA / State License",
+    licensePlaceholder: "License Number",
+    docsHint: "Trust deed, Registration cert, CARA approval",
+    contactLabel: "Warden / In-charge",
+    contactPlaceholder: "Mrs. Sunita Rao",
+    emailPlaceholder: "warden@orphanage.org",
+    submitLabel: "Register Orphanage",
+  },
+  {
+    id: "ngo",
+    label: "NGO / Foundation",
+    emoji: "🤝",
+    nameLabel: "NGO / Foundation Name",
+    namePlaceholder: "Helping Hands Foundation",
+    regLabel: "NGO / 80G Reg. Number",
+    regPlaceholder: "NGO/DARPAN/XXXX",
+    licenseLabel: "FCRA / 12A Number",
+    licensePlaceholder: "FCRA No. (if applicable)",
+    docsHint: "NGO Darpan cert, 80G / 12A, PAN card",
+    contactLabel: "Founder / Director",
+    contactPlaceholder: "Mr. Arjun Nair",
+    emailPlaceholder: "contact@ngo.org",
+    submitLabel: "Register NGO / Foundation",
+  },
+];
+
 function HospitalRegister() {
   const [showPass, setShowPass] = useState(false);
+  const [orgType, setOrgType] = useState("hospital");
+
+  const org = orgTypes.find((o) => o.id === orgType)!;
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+
+      {/* Organization Type Radio Buttons */}
+      <div className="space-y-2">
+        <Label className="font-body font-semibold text-sm">Organization Type</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {orgTypes.map((type) => (
+            <button
+              key={type.id}
+              type="button"
+              onClick={() => setOrgType(type.id)}
+              className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all font-body text-sm font-semibold ${orgType === type.id
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40"
+                }`}
+            >
+              <span className="text-lg">{type.emoji}</span>
+              {type.label}
+              {orgType === type.id && (
+                <span className="ml-auto w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Dynamic fields based on org type */}
+      <motion.div
+        key={orgType}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="grid grid-cols-2 gap-4"
+      >
         <div className="col-span-2 space-y-1.5">
-          <Label className="font-body font-semibold text-sm">Hospital Name</Label>
-          <Input placeholder="Apollo Hospitals, Mumbai" className="h-11 rounded-xl font-body" />
+          <Label className="font-body font-semibold text-sm">{org.nameLabel}</Label>
+          <Input placeholder={org.namePlaceholder} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
-          <Label className="font-body font-semibold text-sm">Registration Number</Label>
-          <Input placeholder="MH/HOS/XXXX" className="h-11 rounded-xl font-body" />
+          <Label className="font-body font-semibold text-sm">{org.regLabel}</Label>
+          <Input placeholder={org.regPlaceholder} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
-          <Label className="font-body font-semibold text-sm">License Number</Label>
-          <Input placeholder="Blood Bank License" className="h-11 rounded-xl font-body" />
+          <Label className="font-body font-semibold text-sm">{org.licenseLabel}</Label>
+          <Input placeholder={org.licensePlaceholder} className="h-11 rounded-xl font-body" />
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Full Address</Label>
           <Input placeholder="Street, Area, City, State - PIN" className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
-          <Label className="font-body font-semibold text-sm">Contact Person</Label>
-          <Input placeholder="Dr. Priya Menon" className="h-11 rounded-xl font-body" />
+          <Label className="font-body font-semibold text-sm">{org.contactLabel}</Label>
+          <Input placeholder={org.contactPlaceholder} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
           <Label className="font-body font-semibold text-sm">Contact Mobile</Label>
@@ -299,13 +400,13 @@ function HospitalRegister() {
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Official Email</Label>
-          <Input type="email" placeholder="bloodbank@hospital.in" className="h-11 rounded-xl font-body" />
+          <Input type="email" placeholder={org.emailPlaceholder} className="h-11 rounded-xl font-body" />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="font-body font-semibold text-sm">Upload Hospital Documents</Label>
+          <Label className="font-body font-semibold text-sm">Upload Documents</Label>
           <div className="border-2 border-dashed border-border rounded-xl p-5 text-center hover:border-primary/40 transition-colors cursor-pointer">
             <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-1.5" />
-            <p className="font-body text-sm text-muted-foreground">Registration cert, License, NABH docs</p>
+            <p className="font-body text-sm text-muted-foreground">{org.docsHint}</p>
           </div>
         </div>
         <div className="col-span-2 space-y-1.5">
@@ -325,10 +426,11 @@ function HospitalRegister() {
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
+
       <Link to="/dashboard?role=hospital">
         <Button className="w-full h-12 bg-gradient-primary text-primary-foreground font-body font-bold rounded-xl shadow-primary">
-          Register Hospital
+          {org.submitLabel}
         </Button>
       </Link>
     </motion.div>
