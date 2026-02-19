@@ -12,6 +12,8 @@ Endpoints consumed by BloodBridge.tsx:
 
 from datetime import date, datetime, timezone
 from typing import Optional
+import time
+import logging
 
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
@@ -21,6 +23,27 @@ from utils.matching import blood_compatible, haversine, days_since
 from utils.sms import alert_donors
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+# ── Retry helper for Windows socket issues ────────────────────────────────────
+
+def _safe_execute(query, retries=3, delay=0.5):
+    """Execute a Supabase query with retry on socket errors."""
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return query.execute()
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            # Retry on socket/connection errors
+            if "10035" in error_str or "ReadError" in error_str or "ConnectError" in error_str:
+                logger.warning(f"Socket error on attempt {attempt + 1}, retrying: {error_str[:100]}")
+                time.sleep(delay * (attempt + 1))
+                continue
+            raise
+    raise last_error
 
 
 # ── Notification helper ───────────────────────────────────────────────────────
@@ -342,63 +365,71 @@ def request_specific_donor(body: DonorRequestBody):
 def get_requests_for_donor(
     donor_id: str = Query(..., description="The donor's user ID"),
 ):
-    # 1. Get donor profile
-    donor_res = supabase.table("donors") \
-        .select("blood_group, city") \
-        .eq("id", donor_id) \
-        .single() \
-        .execute()
+    try:
+        # 1. Get donor profile (returns empty if not a donor - e.g. hospital)
+        donor_res = _safe_execute(
+            supabase.table("donors")
+            .select("blood_group, city")
+            .eq("id", donor_id)
+            .limit(1)
+        )
 
-    if not donor_res.data:
-        raise HTTPException(status_code=404, detail="Donor not found")
+        # If no donor found with this ID, return empty (might be a hospital)
+        if not donor_res.data:
+            return []
 
-    donor_group = donor_res.data.get("blood_group")
-    if not donor_group:
-        return []
+        donor_group = donor_res.data[0].get("blood_group")
+        if not donor_group:
+            return []
 
-    # 2. Fetch all open requests
-    req_res = supabase.table("blood_requests") \
-        .select("*, hospitals(name, city)") \
-        .eq("status", "open") \
-        .order("created_at", desc=True) \
-        .limit(30) \
-        .execute()
+        # 2. Fetch all open requests
+        req_res = _safe_execute(
+            supabase.table("blood_requests")
+            .select("*, hospitals(name, city)")
+            .eq("status", "open")
+            .order("created_at", desc=True)
+            .limit(30)
+        )
 
-    now = datetime.now(timezone.utc)
-    results = []
+        now = datetime.now(timezone.utc)
+        results = []
 
-    for r in (req_res.data or []):
-        req_group = r.get("blood_group")
-        if req_group and not blood_compatible(donor_group, req_group):
-            continue
+        for r in (req_res.data or []):
+            req_group = r.get("blood_group")
+            if req_group and not blood_compatible(donor_group, req_group):
+                continue
 
-        hospital      = r.get("hospitals") or {}
-        raw_ts        = r["created_at"].replace("Z", "+00:00")
-        created       = datetime.fromisoformat(raw_ts)
-        elapsed       = now - created
-        hours_elapsed = elapsed.total_seconds() / 3600
+            hospital      = r.get("hospitals") or {}
+            raw_ts        = r["created_at"].replace("Z", "+00:00")
+            created       = datetime.fromisoformat(raw_ts)
+            elapsed       = now - created
+            hours_elapsed = elapsed.total_seconds() / 3600
 
-        urgency         = (r.get("urgency") or "normal").upper()
-        max_hours       = {"CRITICAL": 6, "URGENT": 12, "NORMAL": 24}.get(urgency, 12)
-        time_left_hours = max(0, max_hours - hours_elapsed)
-        h = int(time_left_hours)
-        m = int((time_left_hours - h) * 60)
+            urgency         = (r.get("urgency") or "normal").upper()
+            max_hours       = {"CRITICAL": 6, "URGENT": 12, "NORMAL": 24}.get(urgency, 12)
+            time_left_hours = max(0, max_hours - hours_elapsed)
+            h = int(time_left_hours)
+            m = int((time_left_hours - h) * 60)
 
-        results.append({
-            "id":         r["id"],
-            "hospital":   hospital.get("name", "Unknown Hospital"),
-            "group":      req_group,
-            "units":      r.get("units", 1),
-            "urgency":    urgency,
-            "timeLeft":   f"{h}h {m:02d}m",
-            "hours_left": time_left_hours,
-            "city":       hospital.get("city", ""),
-            "posted":     f"{int(elapsed.total_seconds() / 60)} min ago"
-                          if elapsed.total_seconds() < 3600
-                          else f"{int(hours_elapsed)}h ago",
-        })
+            results.append({
+                "id":         r["id"],
+                "hospital":   hospital.get("name", "Unknown Hospital"),
+                "group":      req_group,
+                "units":      r.get("units", 1),
+                "urgency":    urgency,
+                "timeLeft":   f"{h}h {m:02d}m",
+                "hours_left": time_left_hours,
+                "city":       hospital.get("city", ""),
+                "posted":     f"{int(elapsed.total_seconds() / 60)} min ago"
+                              if elapsed.total_seconds() < 3600
+                              else f"{int(hours_elapsed)}h ago",
+            })
 
-    return results
+        return results
+    
+    except Exception as e:
+        logger.error(f"Error in get_requests_for_donor: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch requests. Please try again.")
 
 
 # ── GET /blood/shortage ───────────────────────────────────────────────────────
