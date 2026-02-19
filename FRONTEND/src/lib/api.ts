@@ -73,6 +73,7 @@ export interface BloodDonor {
     trust: number; trust_score: number; is_verified: boolean;
     available: boolean; eligible_to_donate: boolean;
     last_donated: string; distance_km: number | null; distance: string;
+    lat?: number; lng?: number;
 }
 
 export interface BloodRequest {
@@ -236,7 +237,7 @@ export const api = {
             get<BloodRequest[]>("/blood/requests/open"),
 
         /** BloodBridge "Post Request" button (hospital) */
-        postRequest: (body: { hospital_id: string; blood_group: string; units: number; urgency: string; lat?: number; lng?: number }) =>
+        postRequest: (body: { hospital_id: string; blood_group: string; units: number; urgency: string; donor_id?: string; lat?: number; lng?: number }) =>
             post("/blood/requests", body),
 
         /** Shortage prediction widget */

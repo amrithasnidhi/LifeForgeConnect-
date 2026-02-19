@@ -90,6 +90,8 @@ def get_blood_donors(
             "last_donated":      f"{since} days ago" if since is not None else "No record",
             "distance_km":       distance_km,
             "distance":          f"{distance_km} km" if distance_km is not None else "—",
+            "lat":               d.get("lat"),
+            "lng":               d.get("lng"),
         })
 
     # Sort: eligible first, then by trust score desc
