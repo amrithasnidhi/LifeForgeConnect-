@@ -19,6 +19,9 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+# Explicit localhost origins for dev + regex for Vercel/Netlify previews.
+# For production, remove localhost entries and pin the deployed domain.
+# Note: allow_credentials=True requires explicit origins (not "*").
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

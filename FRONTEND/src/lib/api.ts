@@ -13,7 +13,9 @@
  * ──────────────────────────────────────────────────────────────────
  */
 
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// In dev, BASE is empty so requests go to the same Vite origin (proxied → FastAPI).
+// In production, set VITE_API_URL to your deployed backend URL.
+const BASE = import.meta.env.VITE_API_URL ?? "";
 
 // ── Core fetch helper ─────────────────────────────────────────────────────────
 
@@ -23,7 +25,9 @@ async function req<T>(
     body?: unknown,
     params?: Record<string, string | number | boolean | undefined | null>
 ): Promise<T> {
-    const url = new URL(BASE + path);
+    // When BASE is empty, use window.location.origin so `new URL()` doesn't throw on relative paths
+    const base = BASE || window.location.origin;
+    const url = new URL(base + path);
 
     if (params) {
         Object.entries(params).forEach(([k, v]) => {
@@ -224,7 +228,7 @@ export const api = {
 
     blood: {
         /** BloodBridge donor cards grid */
-        getDonors: (params?: { blood_group?: string; city?: string; lat?: number; lng?: number; limit?: number }) =>
+        getDonors: (params?: { blood_group?: string; city?: string; pincode?: string; lat?: number; lng?: number; limit?: number }) =>
             get<BloodDonor[]>("/blood/donors", params),
 
         /** BloodBridge "Live Urgent Requests" list */
@@ -287,6 +291,9 @@ export const api = {
             post<{ patient_hla: string[]; total_found: number; matches: MarrowMatch[] }>(
                 "/marrow/match", { patient_hla: patientHla, patient_id: patientId, min_match_percent: minMatchPercent }
             ),
+
+        contact: (body: { donor_id: string; patient_name?: string; urgency?: string; message?: string }) =>
+            post("/marrow/contact", body),
 
         /** MarrowMatch "Register as Donor" button */
         registerHla: (donorId: string, hlaType: string[]) =>
