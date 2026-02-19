@@ -294,17 +294,52 @@ export const api = {
 
     // ── PlateletAlert ───────────────────────────────────────────────────────────
 
+    // ── ADD THESE to the api.platelet section in api.ts ──────────────────────────
+    // Find your existing api.platelet object and add/replace these methods:
+
     platelet: {
-        getOpenRequests: () =>
-            get<PlateletRequest[]>("/platelet/requests/open"),
+        getOpenRequests: (params?: {
+            user_id?: string;
+            urgency?: string;
+            blood_group?: string;
+        }) => {
+            const qs = new URLSearchParams();
+            if (params?.user_id) qs.set("user_id", params.user_id);
+            if (params?.urgency) qs.set("urgency", params.urgency);
+            if (params?.blood_group) qs.set("blood_group", params.blood_group);
+            return get<PlateletRequest[]>(`/platelet/requests/open?${qs.toString()}`);
+        },
 
-        getDonors: (params?: { blood_group?: string; city?: string }) =>
-            get<PlateletDonor[]>("/platelet/donors", params),
+        getDonors: (params?: { blood_group?: string; city?: string }) => {
+            const qs = new URLSearchParams();
+            if (params?.blood_group) qs.set("blood_group", params.blood_group);
+            if (params?.city) qs.set("city", params.city);
+            return get<PlateletDonor[]>(`/platelet/donors?${qs.toString()}`);
+        },
 
-        postRequest: (body: { patient_name: string; cancer_type?: string; blood_group?: string; units?: number; urgency?: string; hospital_id: string }) =>
-            post("/platelet/requests", body),
+        postRequest: (body: {
+            patient_name: string;
+            cancer_type?: string;
+            blood_group: string;
+            units: number;
+            urgency: string;
+            hospital_id: string;
+        }) => post<{ success: boolean; request_id: string }>("/platelet/requests", body),
+
+        // ── NEW: Match endpoints ──
+
+        createMatch: (body: { request_id: string; donor_id: string }) =>
+            post<{ success: boolean; match_id: string }>("/platelet/matches", body),
+
+        updateMatch: (matchId: string, body: { status: string; donor_id: string }) =>
+            patch<{ success: boolean }>(`/platelet/matches/${matchId}`, body),
+
+        getDonorMatches: (donorId: string) =>
+            get<any[]>(`/platelet/matches/donor/${donorId}`),
+
+        getHospitalMatches: (hospitalId: string) =>
+            get<any[]>(`/platelet/matches/hospital/${hospitalId}`),
     },
-
 
     // ── MarrowMatch ─────────────────────────────────────────────────────────────
 
