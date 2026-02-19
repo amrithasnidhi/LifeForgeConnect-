@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import BloodBridgeMap from "@/components/BloodBridgeMap";
 
 const donors = [
-  { name: "Rahul M.", group: "O-", distance: "1.2 km", trust: 4.9, lastDonated: "92 days ago", available: true, city: "Andheri, Mumbai" },
-  { name: "Sneha P.", group: "O-", distance: "2.7 km", trust: 4.7, lastDonated: "95 days ago", available: true, city: "Bandra, Mumbai" },
-  { name: "Vikram S.", group: "O-", distance: "3.4 km", trust: 4.8, lastDonated: "100 days ago", available: true, city: "Juhu, Mumbai" },
-  { name: "Anita K.", group: "O-", distance: "4.8 km", trust: 4.6, lastDonated: "98 days ago", available: false, city: "Powai, Mumbai" },
+  { id: 1, name: "Rahul M.", group: "O-", distance: "1.2 km", trust: 4.9, lastDonated: "92 days ago", available: true, city: "Andheri, Mumbai", lat: 19.1197, lng: 72.8464 },
+  { id: 2, name: "Sneha P.", group: "O-", distance: "2.7 km", trust: 4.7, lastDonated: "95 days ago", available: true, city: "Bandra, Mumbai", lat: 19.0544, lng: 72.8402 },
+  { id: 3, name: "Vikram S.", group: "O-", distance: "3.4 km", trust: 4.8, lastDonated: "100 days ago", available: true, city: "Juhu, Mumbai", lat: 19.1075, lng: 72.8263 },
+  { id: 4, name: "Anita K.", group: "O-", distance: "4.8 km", trust: 4.6, lastDonated: "98 days ago", available: false, city: "Powai, Mumbai", lat: 19.1176, lng: 72.9060 },
 ];
 
 const urgentRequests = [
@@ -184,6 +185,27 @@ export default function BloodBridge() {
                       )}
                     </motion.div>
                   ))}
+                </div>
+              </div>
+
+              {/* Interactive Donor Map */}
+              <div>
+                <h3 className="font-display text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-blood" /> Nearby Donors
+                </h3>
+                <div className="rounded-2xl border-2 border-blood/20 bg-card shadow-card overflow-hidden">
+                  <BloodBridgeMap
+                    donors={donors.map(d => ({
+                      id: d.id,
+                      name: d.name,
+                      blood_group: d.group,
+                      city: d.city,
+                      trust_score: d.trust,
+                      distance_km: parseFloat(d.distance),
+                      lat: d.lat,
+                      lng: d.lng,
+                    }))}
+                  />
                 </div>
               </div>
             </div>
