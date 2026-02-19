@@ -25,8 +25,6 @@ async function req<T>(
     body?: unknown,
     params?: Record<string, string | number | boolean | undefined | null>
 ): Promise<T> {
-    // When BASE is empty, use relative path so Vite proxy handles it
-    // When BASE is set, use absolute URL
     let url: URL | string;
 
     if (BASE) {
@@ -39,9 +37,8 @@ async function req<T>(
         }
         url = urlObj.toString();
     } else {
-        // Relative path - will be handled by Vite proxy
-        // Add /api prefix so it triggers the Vite proxy rule
-        let relativePath = `/api${path}`;
+        // Relative path - handled by Vite proxy (no /api prefix needed)
+        let relativePath = path;
         if (params) {
             const searchParams = new URLSearchParams();
             Object.entries(params).forEach(([k, v]) => {
@@ -205,7 +202,6 @@ export const api = {
     // ── Auth ────────────────────────────────────────────────────────────────────
 
     auth: {
-        /** Register.tsx DonorRegister step-3 submit */
         registerDonor: (body: {
             first_name: string; last_name: string; mobile: string;
             aadhaar?: string; dob?: string; gender?: string;
@@ -214,14 +210,12 @@ export const api = {
             lat?: number; lng?: number;
         }) => post("/auth/register/donor", body),
 
-        /** Register.tsx HospitalRegister submit */
         registerHospital: (body: {
             name: string; reg_number: string; license?: string;
             address: string; city: string; contact_person: string;
             contact_mobile: string; contact_email: string; password: string;
         }) => post("/auth/register/hospital", body),
 
-        /** Login.tsx Sign In button */
         login: async (email: string, password: string, role = "donor") => {
             const data = await post<{ access_token: string; user_id: string; role: string; redirect: string; profile: any }>(
                 "/auth/login", { email, password, role }
@@ -238,7 +232,6 @@ export const api = {
             localStorage.removeItem("lf_role");
         },
 
-        /** Login.tsx / Register.tsx 'Get OTP' button */
         sendOtp: (mobile: string) => post("/auth/otp/send", { mobile }),
         verifyOtp: (mobile: string, otp: string) => post("/auth/otp/verify", { mobile, otp }),
     },
@@ -247,27 +240,21 @@ export const api = {
     // ── BloodBridge ─────────────────────────────────────────────────────────────
 
     blood: {
-        /** BloodBridge donor cards grid */
         getDonors: (params?: { blood_group?: string; city?: string; pincode?: string; lat?: number; lng?: number; limit?: number }) =>
             get<BloodDonor[]>("/blood/donors", params),
 
-        /** BloodBridge "Live Urgent Requests" list */
         getOpenRequests: () =>
             get<BloodRequest[]>("/blood/requests/open"),
 
-        /** BloodBridge "Post Request" button (hospital) */
         postRequest: (body: { hospital_id: string; blood_group: string; units: number; urgency: string; donor_id?: string; lat?: number; lng?: number }) =>
             post("/blood/requests", body),
 
-        /** Request a specific donor (hospital) */
         requestDonor: (body: { hospital_id: string; donor_id: string; blood_group: string; units: number; urgency: string }) =>
             post("/blood/donors/request", body),
 
-        /** Get requests matching donor's group (donor dashboard) */
         getRequestsForDonor: (donorId: string) =>
             get<BloodRequest[]>("/blood/requests/for-donor", { donor_id: donorId }),
 
-        /** Shortage prediction widget */
         getShortage: () =>
             get<BloodShortage[]>("/blood/shortage"),
     },
@@ -276,19 +263,15 @@ export const api = {
     // ── ThalCare ────────────────────────────────────────────────────────────────
 
     thal: {
-        /** ThalCare "Active Patients" list */
         getPatients: (hospitalId?: string) =>
             get<ThalPatient[]>("/thal/patients", hospitalId ? { hospital_id: hospitalId } : undefined),
 
-        /** ThalCare 7-day calendar widget */
         getCalendar: (daysAhead = 7) =>
             get<CalendarDay[]>("/thal/calendar", { days_ahead: daysAhead }),
 
-        /** ThalCare "Register Patient" button */
         registerPatient: (body: { name: string; blood_group: string; hospital_id: string; transfusion_frequency_days?: number; last_transfusion_date?: string }) =>
             post("/thal/patients", body),
 
-        /** After transfusion is completed */
         markDone: (patientId: string, transfusionDate: string) =>
             post("/thal/transfusion-done", { patient_id: patientId, transfusion_date: transfusionDate }),
     },
@@ -297,15 +280,12 @@ export const api = {
     // ── PlateletAlert ───────────────────────────────────────────────────────────
 
     platelet: {
-        /** PlateletAlert requests list + viability clocks */
         getOpenRequests: () =>
             get<PlateletRequest[]>("/platelet/requests/open"),
 
-        /** PlateletAlert compatible apheresis donor cards */
         getDonors: (params?: { blood_group?: string; city?: string }) =>
             get<PlateletDonor[]>("/platelet/donors", params),
 
-        /** PlateletAlert "Add Patient" button */
         postRequest: (body: { patient_name: string; cancer_type?: string; blood_group?: string; units?: number; urgency?: string; hospital_id: string }) =>
             post("/platelet/requests", body),
     },
@@ -314,7 +294,6 @@ export const api = {
     // ── MarrowMatch ─────────────────────────────────────────────────────────────
 
     marrow: {
-        /** MarrowMatch "Find Matches" button */
         findMatches: (patientHla: string[], patientId?: string, minMatchPercent = 30) =>
             post<{ patient_hla: string[]; total_found: number; matches: MarrowMatch[] }>(
                 "/marrow/match", { patient_hla: patientHla, patient_id: patientId, min_match_percent: minMatchPercent }
@@ -323,7 +302,6 @@ export const api = {
         contact: (body: { donor_id: string; patient_name?: string; urgency?: string; message?: string }) =>
             post("/marrow/contact", body),
 
-        /** MarrowMatch "Register as Donor" button */
         registerHla: (donorId: string, hlaType: string[]) =>
             post("/marrow/register-hla", { donor_id: donorId, hla_type: hlaType }),
 
@@ -334,19 +312,15 @@ export const api = {
     // ── LastGift (Organs) ────────────────────────────────────────────────────────
 
     organ: {
-        /** LastGift viability cards grid */
         getViability: () =>
             get<OrganViability[]>("/organ/viability"),
 
-        /** LastGift recipient ranking list */
         getRecipients: (params?: { organ_type?: string; blood_group?: string; donor_lat?: number; donor_lng?: number }) =>
             get<OrganRecipient[]>("/organ/recipients", params),
 
-        /** LastGift "Get Digital Pledge Card" button */
         createPledge: (body: { donor_id: string; organs: string[]; family_consent: boolean }) =>
             post<{ pledge_id: string; pledge_id_short: string; organs_pledged: string[] }>("/organ/pledge", body),
 
-        /** Hospital adds a recipient to the waiting list */
         postRequest: (body: { hospital_id: string; recipient_name: string; organ_needed: string; blood_group: string; urgency_score?: number }) =>
             post("/organ/requests", body),
     },
@@ -355,23 +329,18 @@ export const api = {
     // ── MilkBridge ──────────────────────────────────────────────────────────────
 
     milk: {
-        /** MilkBridge active donor cards */
         getDonors: () =>
             get<MilkDonor[]>("/milk/donors"),
 
-        /** MilkBridge Milk Bank table */
         getBank: () =>
             get<MilkBankRow[]>("/milk/bank"),
 
-        /** MilkBridge shortage alert card */
         getShortageAlerts: () =>
             get<MilkShortageAlert[]>("/milk/shortage-alerts"),
 
-        /** MilkBridge "Register as Donor" form */
         registerDonor: (body: { donor_id: string; baby_age_months: number; quantity_ml_per_day: number; pickup_location?: string }) =>
             post("/milk/register-donor", body),
 
-        /** Hospital posts a shortage request */
         postRequest: (body: { hospital_id: string; infant_name?: string; daily_quantity_ml: number }) =>
             post("/milk/requests", body),
     },
@@ -380,19 +349,15 @@ export const api = {
     // ── Dashboard ───────────────────────────────────────────────────────────────
 
     dashboard: {
-        /** DonorDashboard component */
         getDonor: (donorId: string) =>
             get<DonorDashboard>(`/dashboard/donor/${donorId}`),
 
-        /** HospitalDashboard component */
         getHospital: (hospitalId: string) =>
             get(`/dashboard/hospital/${hospitalId}`),
 
-        /** AdminDashboard component */
         getAdmin: () =>
             get<AdminDashboard>("/dashboard/admin"),
 
-        /** Approve/reject from AdminDashboard verification queue */
         verify: (entityType: "donor" | "hospital", entityId: string, approved: boolean) =>
             post("/dashboard/admin/verify", { entity_type: entityType, entity_id: entityId, approved }),
     },
@@ -401,7 +366,6 @@ export const api = {
 
 // ── Convenience helpers ───────────────────────────────────────────────────────
 
-/** Get logged-in user ID from localStorage */
 export const getCurrentUserId = () => localStorage.getItem("lf_user_id") ?? "";
 export const getCurrentRole = () => localStorage.getItem("lf_role") ?? "donor";
 export const isLoggedIn = () => !!localStorage.getItem("lf_token");
