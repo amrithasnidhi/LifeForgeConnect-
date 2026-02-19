@@ -228,7 +228,7 @@ export const api = {
 
     blood: {
         /** BloodBridge donor cards grid */
-        getDonors: (params?: { blood_group?: string; city?: string; lat?: number; lng?: number; limit?: number }) =>
+        getDonors: (params?: { blood_group?: string; city?: string; pincode?: string; lat?: number; lng?: number; limit?: number }) =>
             get<BloodDonor[]>("/blood/donors", params),
 
         /** BloodBridge "Live Urgent Requests" list */
