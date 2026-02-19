@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, Bell, MapPin, CheckCircle2, AlertCircle, Clock,
-  Users, TrendingUp, Activity, Plus, Eye, Settings, LogOut,
-  Shield, Star, ChevronRight, BarChart3, Loader2
+  Users, Activity, Plus, Eye, Settings,
+  Shield, Star, ChevronRight, BarChart3, Loader2, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,167 @@ const matchHistory = [
   { date: "Jan 28, 2025", type: "⏱️ Platelets", hospital: "Kokilaben Hospital", status: "Fulfilled", impact: "1 patient helped" },
   { date: "Jan 10, 2025", type: "🩸 Blood (O+)", hospital: "Breach Candy Hospital", status: "Fulfilled", impact: "2 lives saved" },
 ];
+
+// ── Alerts Panel ─────────────────────────────────────────────────────────────
+
+function AlertsPanel({ role, onClose }: { role: string; onClose: () => void }) {
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Track seen alert IDs in localStorage
+  const seenKey = `lf_seen_alerts_${getCurrentUserId()}`;
+  const getSeenIds = (): string[] => {
+    try { return JSON.parse(localStorage.getItem(seenKey) || "[]"); } catch { return []; }
+  };
+  const markAllSeen = (ids: string[]) => {
+    localStorage.setItem(seenKey, JSON.stringify(ids));
+  };
+
+  useEffect(() => {
+    const userId = getCurrentUserId();
+    if (!userId) { setLoading(false); return; }
+
+    const fetchAlerts = async () => {
+      try {
+        let raw: any[] = [];
+        if (role === "donor") {
+          const reqs = await api.blood.getRequestsForDonor(userId);
+          raw = reqs.map((r: any) => ({
+            id: r.id,
+            title: `🏥 ${r.hospital} needs ${r.group} blood`,
+            subtitle: `${r.units} unit(s) · ${r.city}`,
+            urgency: r.urgency,
+            time: r.posted,
+            meta: r,
+          }));
+        } else if (role === "hospital") {
+          const reqs = await api.blood.getOpenRequests();
+          raw = reqs.slice(0, 10).map((r: any) => ({
+            id: r.id,
+            title: `🩸 ${r.group} request — ${r.hospital}`,
+            subtitle: `${r.units} unit(s) · ${r.city}`,
+            urgency: r.urgency,
+            time: r.posted,
+            meta: r,
+          }));
+        }
+        // Only show unseen alerts
+        const seenIds = getSeenIds();
+        const unseen = raw.filter((a) => !seenIds.includes(a.id));
+        setAlerts(unseen);
+        // Mark all as seen once panel opens
+        markAllSeen(raw.map((a) => a.id));
+      } catch (e) {
+        console.error("Failed to fetch alerts", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAlerts();
+  }, [role]);
+
+  const urgencyColor = (u: string) => {
+    if (u === "CRITICAL") return "bg-blood/15 text-blood";
+    if (u === "URGENT") return "bg-platelet/15 text-platelet";
+    return "bg-muted text-muted-foreground";
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: -10, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -10, scale: 0.97 }}
+        transition={{ duration: 0.2 }}
+        className="absolute right-0 top-12 z-50 w-96 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+          <div className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-primary" />
+            <span className="font-display font-bold text-sm text-foreground">
+              {role === "donor" ? "Hospital Requests for You" : "Donor Activity & Requests"}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="max-h-[420px] overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="py-10 text-center">
+              <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-30" />
+              <p className="font-body text-sm text-muted-foreground">No alerts right now</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {alerts.map((alert, i) => (
+                <motion.div
+                  key={alert.id || i}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="px-4 py-3 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-body font-semibold text-sm text-foreground truncate">{alert.title}</p>
+                      <p className="font-body text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 shrink-0" /> {alert.subtitle}
+                      </p>
+                      <p className="font-body text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3 shrink-0" /> {alert.time}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <Badge className={`text-[10px] border-0 font-body px-1.5 ${urgencyColor(alert.urgency)}`}>
+                        {alert.urgency}
+                      </Badge>
+                      {role === "donor" && (
+                        <Button
+                          size="sm"
+                          className="h-6 text-[11px] px-2 bg-primary text-primary-foreground font-body rounded-lg"
+                          onClick={() => {
+                            toast.success(`Response sent to ${alert.meta?.hospital}!`, {
+                              description: `They will contact you shortly.`,
+                            });
+                          }}
+                        >
+                          Respond
+                        </Button>
+                      )}
+                      {role === "hospital" && alert.meta?.matched > 0 && (
+                        <Badge className="text-[10px] border-0 font-body px-1.5 bg-secondary/15 text-secondary">
+                          {alert.meta.matched} matched
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-2 border-t border-border bg-muted/20 text-center">
+          <span className="font-body text-xs text-muted-foreground">
+            {alerts.length} alert{alerts.length !== 1 ? "s" : ""} · Live updates
+          </span>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ── Donor Dashboard ───────────────────────────────────────────────────────────
 
 function DonorDashboard() {
   const [available, setAvailable] = useState(true);
@@ -93,11 +254,9 @@ function DonorDashboard() {
             <span className="font-body text-sm font-medium text-primary-foreground/80">Available</span>
             <button
               onClick={() => setAvailable(!available)}
-              className={`w-12 h-6 rounded-full transition-all duration-300 relative ${available ? "bg-accent" : "bg-primary-foreground/30"
-                }`}
+              className={`w-12 h-6 rounded-full transition-all duration-300 relative ${available ? "bg-accent" : "bg-primary-foreground/30"}`}
             >
-              <div className={`absolute top-1 w-4 h-4 rounded-full bg-primary-foreground transition-all duration-300 ${available ? "right-1" : "left-1"
-                }`} />
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-primary-foreground transition-all duration-300 ${available ? "right-1" : "left-1"}`} />
             </button>
           </div>
         </div>
@@ -137,7 +296,7 @@ function DonorDashboard() {
         ) : activeRequests.length === 0 ? (
           <div className="p-10 text-center border-2 border-dashed rounded-2xl bg-muted/20">
             <Heart className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
-            <p className="text-muted-foreground font-body font-semibold">No urgent requests matching your blood group matching right now.</p>
+            <p className="text-muted-foreground font-body font-semibold">No urgent requests matching your blood group right now.</p>
             <p className="text-muted-foreground font-body text-xs mt-1">We'll alert you if someone nearby needs your help.</p>
           </div>
         ) : (
@@ -194,9 +353,7 @@ function DonorDashboard() {
             <thead className="bg-muted">
               <tr>
                 {["Date", "Type", "Hospital", "Status", "Impact"].map((h) => (
-                  <th key={h} className="font-body text-xs font-semibold text-muted-foreground px-4 py-3 text-left">
-                    {h}
-                  </th>
+                  <th key={h} className="font-body text-xs font-semibold text-muted-foreground px-4 py-3 text-left">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -281,10 +438,7 @@ function HospitalDashboard() {
         <p className="font-body text-primary-foreground/70 text-sm mb-4">
           {h?.is_verified ? "Verified Hospital" : "Verification Pending"} · {h?.city}
         </p>
-        <Button
-          onClick={() => navigate("/blood-bridge")}
-          className="bg-primary-foreground text-primary font-body font-bold rounded-xl"
-        >
+        <Button onClick={() => navigate("/blood-bridge")} className="bg-primary-foreground text-primary font-body font-bold rounded-xl">
           <Plus className="w-4 h-4 mr-2" /> Post Urgent Blood Request
         </Button>
       </div>
@@ -398,7 +552,6 @@ function BloodBankDashboard() {
           </Button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: "🩸", label: "Units in Stock", value: "342", color: "text-blood" },
@@ -413,7 +566,6 @@ function BloodBankDashboard() {
           </div>
         ))}
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Blood Inventory by Group</h3>
         <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
@@ -423,17 +575,14 @@ function BloodBankDashboard() {
             { group: "AB+", units: 31, status: "ok" }, { group: "AB-", units: 5, status: "critical" },
             { group: "O+", units: 96, status: "ok" }, { group: "O-", units: 3, status: "critical" },
           ].map(({ group, units, status }) => (
-            <div key={group} className={`rounded-xl border-2 p-3 text-center ${status === "critical" ? "border-blood bg-blood/5" : status === "low" ? "border-platelet bg-platelet/5" : "border-border bg-card"
-              }`}>
+            <div key={group} className={`rounded-xl border-2 p-3 text-center ${status === "critical" ? "border-blood bg-blood/5" : status === "low" ? "border-platelet bg-platelet/5" : "border-border bg-card"}`}>
               <div className="font-display text-lg font-bold">{group}</div>
-              <div className={`font-display text-xl font-bold ${status === "critical" ? "text-blood" : status === "low" ? "text-platelet" : "text-foreground"
-                }`}>{units}</div>
+              <div className={`font-display text-xl font-bold ${status === "critical" ? "text-blood" : status === "low" ? "text-platelet" : "text-foreground"}`}>{units}</div>
               <div className="font-body text-xs text-muted-foreground">units</div>
             </div>
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Recent Dispatch Requests</h3>
         <div className="space-y-3">
@@ -446,9 +595,7 @@ function BloodBankDashboard() {
               <div className="text-2xl">🏥</div>
               <div className="flex-1">
                 <span className="font-body font-bold text-sm">{req.hospital}</span>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {req.group} · {req.units} unit(s) · {req.time}
-                </div>
+                <div className="font-body text-xs text-muted-foreground mt-0.5">{req.group} · {req.units} unit(s) · {req.time}</div>
               </div>
               <Badge className={`text-xs border-0 font-body ${req.status === "Dispatched" ? "bg-secondary/15 text-secondary" : "bg-platelet/15 text-platelet"}`}>
                 {req.status}
@@ -476,7 +623,6 @@ function OrphanageDashboard() {
           </Button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: "👶", label: "Children Under Care", value: "34", color: "text-platelet" },
@@ -491,7 +637,6 @@ function OrphanageDashboard() {
           </div>
         ))}
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Pending Requests</h3>
         <div className="space-y-3">
@@ -504,12 +649,9 @@ function OrphanageDashboard() {
               <div className="text-2xl">{req.type}</div>
               <div className="flex-1">
                 <span className="font-body font-bold text-sm">{req.need}</span>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {req.qty} · Posted {req.posted}
-                </div>
+                <div className="font-body text-xs text-muted-foreground mt-0.5">{req.qty} · Posted {req.posted}</div>
               </div>
-              <Badge className={`text-xs border-0 font-body ${req.urgency === "URGENT" ? "bg-blood/15 text-blood" : req.urgency === "SCHEDULED" ? "bg-muted text-muted-foreground" : "bg-secondary/15 text-secondary"
-                }`}>
+              <Badge className={`text-xs border-0 font-body ${req.urgency === "URGENT" ? "bg-blood/15 text-blood" : req.urgency === "SCHEDULED" ? "bg-muted text-muted-foreground" : "bg-secondary/15 text-secondary"}`}>
                 {req.urgency}
               </Badge>
             </div>
@@ -535,7 +677,6 @@ function NgoDashboard() {
           </Button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: "🎯", label: "Drives This Month", value: "6", color: "text-secondary" },
@@ -550,7 +691,6 @@ function NgoDashboard() {
           </div>
         ))}
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Upcoming Drives</h3>
         <div className="space-y-3">
@@ -563,9 +703,7 @@ function NgoDashboard() {
               <div className="text-2xl">📅</div>
               <div className="flex-1">
                 <span className="font-body font-bold text-sm">{drive.name}</span>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {drive.date} · {drive.registered}/{drive.target} registered
-                </div>
+                <div className="font-body text-xs text-muted-foreground mt-0.5">{drive.date} · {drive.registered}/{drive.target} registered</div>
               </div>
               <Badge className={`text-xs border-0 font-body ${drive.status === "OPEN" ? "bg-secondary/15 text-secondary" : "bg-muted text-muted-foreground"}`}>
                 {drive.status}
@@ -574,7 +712,6 @@ function NgoDashboard() {
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Recent Impact</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -615,8 +752,6 @@ function AdminDashboard() {
           </div>
         ))}
       </div>
-
-      {/* Verification queue */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display text-lg font-bold flex items-center gap-2">
@@ -639,12 +774,8 @@ function AdminDashboard() {
                 <div className="font-body text-xs text-muted-foreground">{item.type} · {item.city} · {item.docs} · {item.time}</div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="border-secondary text-secondary rounded-lg font-body text-xs">
-                  ✓ Approve
-                </Button>
-                <Button size="sm" variant="outline" className="border-blood text-blood rounded-lg font-body text-xs">
-                  ✗ Reject
-                </Button>
+                <Button size="sm" variant="outline" className="border-secondary text-secondary rounded-lg font-body text-xs">✓ Approve</Button>
+                <Button size="sm" variant="outline" className="border-blood text-blood rounded-lg font-body text-xs">✗ Reject</Button>
               </div>
             </div>
           ))}
@@ -654,11 +785,38 @@ function AdminDashboard() {
   );
 }
 
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
   const { role, userName, logout } = useAuth();
   const navigate = useNavigate();
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [unseenCount, setUnseenCount] = useState(0);
 
-  // Redirect to login if no role is set
+  useEffect(() => {
+    const userId = getCurrentUserId();
+    if (!userId || !role) return;
+    const seenKey = `lf_seen_alerts_${userId}`;
+    const getSeenIds = (): string[] => {
+      try { return JSON.parse(localStorage.getItem(seenKey) || "[]"); } catch { return []; }
+    };
+    const countUnseen = async () => {
+      try {
+        let ids: string[] = [];
+        if (role === "donor") {
+          const reqs = await api.blood.getRequestsForDonor(userId);
+          ids = reqs.map((r: any) => r.id);
+        } else if (role === "hospital") {
+          const reqs = await api.blood.getOpenRequests();
+          ids = reqs.slice(0, 10).map((r: any) => r.id);
+        }
+        const seenIds = getSeenIds();
+        setUnseenCount(ids.filter((id) => !seenIds.includes(id)).length);
+      } catch { setUnseenCount(0); }
+    };
+    countUnseen();
+  }, [role]);
+
   if (!role) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -690,7 +848,6 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-16">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -707,24 +864,29 @@ export default function Dashboard() {
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">Welcome back, {userName} 👋</h1>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" className="border-border font-body rounded-xl">
-              <Bell className="w-4 h-4 mr-1.5" /> Alerts <Badge className="ml-1.5 bg-primary text-primary-foreground text-xs border-0">3</Badge>
-            </Button>
+            {/* Clickable Alerts button */}
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-border font-body rounded-xl"
+                onClick={() => { setShowAlerts((v) => !v); setUnseenCount(0); }}
+              >
+                <Bell className="w-4 h-4 mr-1.5" /> Alerts
+                {unseenCount > 0 && (
+                  <Badge className="ml-1.5 bg-primary text-primary-foreground text-xs border-0">{unseenCount}</Badge>
+                )}
+              </Button>
+              {showAlerts && (
+                <AlertsPanel role={role} onClose={() => setShowAlerts(false)} />
+              )}
+            </div>
             <Button variant="outline" size="sm" className="border-border font-body rounded-xl">
               <Settings className="w-4 h-4 mr-1.5" /> Settings
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-blood text-blood font-body rounded-xl hover:bg-blood hover:text-primary-foreground"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-4 h-4 mr-1.5" /> Logout
             </Button>
           </div>
         </motion.div>
 
-        {/* Role-specific dashboard */}
         {role === "donor" && <DonorDashboard />}
         {role === "hospital" && <OrgDashboardRouter />}
         {role === "admin" && <AdminDashboard />}
