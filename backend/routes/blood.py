@@ -27,6 +27,7 @@ router = APIRouter()
 def get_blood_donors(
     blood_group: Optional[str] = Query(None, description="Filter by compatible blood group"),
     city:        Optional[str] = Query(None),
+    pincode:     Optional[str] = Query(None),
     lat:         Optional[float] = Query(None),
     lng:         Optional[float] = Query(None),
     limit:       int = Query(20, le=50),
@@ -40,11 +41,14 @@ def get_blood_donors(
       - distance_km         (if lat/lng provided)
     """
     query = supabase.table("donors") \
-        .select("id, name, city, blood_group, trust_score, is_available, is_verified, lat, lng, last_donation_date, donor_types") \
+        .select("id, name, city, pincode, blood_group, trust_score, is_available, is_verified, lat, lng, last_donation_date, donor_types") \
         .eq("is_available", True)
 
     if city:
         query = query.ilike("city", f"%{city}%")
+    
+    if pincode:
+        query = query.eq("pincode", pincode)
 
     res = query.limit(100).execute()
     donors = res.data or []
