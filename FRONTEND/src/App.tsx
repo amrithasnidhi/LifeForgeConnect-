@@ -14,6 +14,7 @@ import PlateletAlert from "./pages/PlateletAlert";
 import MarrowMatch from "./pages/MarrowMatch";
 import LastGift from "./pages/LastGift";
 import MilkBridge from "./pages/MilkBridge";
+import LifeForgeAI from "./pages/LifeForgeAI";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/marrow-match" element={<MarrowMatch />} />
             <Route path="/last-gift" element={<LastGift />} />
             <Route path="/milk-bridge" element={<MilkBridge />} />
+            <Route path="/ai-companion" element={<LifeForgeAI />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

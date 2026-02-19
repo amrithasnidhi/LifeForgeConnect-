@@ -616,7 +616,7 @@ export default function RegisterPage() {
           <h1 className="font-display text-3xl font-bold text-foreground mb-1">Create Account</h1>
           <p className="font-body text-sm text-muted-foreground mb-6">
             Already registered?{" "}
-            <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link>
+            <Link to="/login" className="text-primary font-semibold hover:underline">Login</Link>
           </p>
 
           <Tabs defaultValue={defaultTab}>
