@@ -186,9 +186,13 @@ def post_blood_request(body: BloodRequestBody):
     ][:5]
 
     # Get hospital name for the SMS
-    hosp = supabase.table("hospitals").select("name, city").eq("id", body.hospital_id).single().execute()
-    hosp_name = hosp.data["name"] if hosp.data else "a hospital"
-    hosp_city = hosp.data["city"] if hosp.data else ""
+    try:
+        hosp = supabase.table("hospitals").select("name, city").eq("id", body.hospital_id).single().execute()
+        hosp_name = hosp.data["name"] if hosp.data else "a hospital"
+        hosp_city = hosp.data["city"] if hosp.data else ""
+    except Exception:
+        hosp_name = "a hospital"
+        hosp_city = ""
 
     msg = (
         f"🩸 URGENT: {body.blood_group} blood needed ({body.units} unit/s) at "

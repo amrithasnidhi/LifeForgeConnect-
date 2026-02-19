@@ -18,23 +18,21 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# ── CORS (FIXED) ──────────────────────────────────────────────────────────────
-# MUST include the exact frontend origin (Vite = 8080)
+# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:8080",     # ✅ your current frontend
+        "http://localhost:8080",
         "http://127.0.0.1:8080",
         "http://localhost:8081",
         "http://localhost:8082",
         "http://localhost:5173",
         "http://localhost:3000",
-        "https://*.vercel.app",
-        "https://*.netlify.app",
     ],
+    allow_origin_regex=r"https://.*\.(vercel|netlify)\.app",
     allow_credentials=True,
-    allow_methods=["*"],            # ✅ allows OPTIONS, POST, etc.
-    allow_headers=["*"],            # ✅ allows Content-Type, Authorization
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
