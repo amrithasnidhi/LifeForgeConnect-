@@ -9,9 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Mode = "donor" | "hospital" | "admin";
 
+const loginOrgTypes = [
+  { id: "hospital", label: "Hospital", emoji: "🏥" },
+  { id: "bloodbank", label: "Blood Bank", emoji: "🩸" },
+  { id: "orphanage", label: "Orphanage", emoji: "🏠" },
+  { id: "ngo", label: "NGO / Foundation", emoji: "🤝" },
+];
+
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [mode, setMode] = useState<Mode>("donor");
+  const [orgType, setOrgType] = useState("hospital");
   const [otpSent, setOtpSent] = useState(false);
   const [mobile, setMobile] = useState("");
   const [searchParams] = useSearchParams();
@@ -82,81 +90,112 @@ export default function LoginPage() {
               <span className="font-display font-bold text-xl text-foreground">LifeForge Connect</span>
             </div>
 
-            <h1 className="font-display text-3xl font-bold text-foreground mb-1">Sign In</h1>
-            <p className="font-body text-sm text-muted-foreground mb-7">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-primary font-semibold hover:underline">
-                Register now
-              </Link>
-            </p>
+            <h1 className="font-display text-3xl font-bold text-foreground mb-1">
+              Login {mode === "admin" && "as Admin"}
+            </h1>
+            {mode !== "admin" && (
+              <p className="font-body text-sm text-muted-foreground mb-7">
+                Don't have an account?{" "}
+                <Link to="/register" className="text-primary font-semibold hover:underline">
+                  Register now
+                </Link>
+              </p>
+            )}
 
-            {/* Mode tabs */}
-            <Tabs defaultValue={defaultMode} onValueChange={(v) => setMode(v as Mode)} className="mb-6">
-              <TabsList className="w-full grid grid-cols-3 bg-muted rounded-xl h-11">
-                <TabsTrigger value="donor" className="rounded-lg font-body font-semibold text-sm">
-                  Donor
-                </TabsTrigger>
-                <TabsTrigger value="hospital" className="rounded-lg font-body font-semibold text-sm">
-                  Hospital
-                </TabsTrigger>
-                <TabsTrigger value="admin" className="rounded-lg font-body font-semibold text-sm">
-                  Admin
-                </TabsTrigger>
-              </TabsList>
+            <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="mb-6 mt-4">
+              {mode !== "admin" && (
+                <TabsList className="w-full grid grid-cols-2 bg-muted rounded-xl h-11">
+                  <TabsTrigger value="donor" className="rounded-lg font-body font-semibold text-sm">
+                    Donor
+                  </TabsTrigger>
+                  <TabsTrigger value="hospital" className="rounded-lg font-body font-semibold text-sm">
+                    Hospital / Org
+                  </TabsTrigger>
+                </TabsList>
+              )}
 
               {["donor", "hospital", "admin"].map((tab) => (
                 <TabsContent key={tab} value={tab} className="mt-6 space-y-4">
-                  {/* Mobile OTP section */}
-                  <div className="space-y-2">
-                    <Label className="font-body font-semibold text-sm text-foreground">Mobile Number</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="tel"
-                        placeholder="+91 98765 43210"
-                        value={mobile}
-                        onChange={(e) => setMobile(e.target.value)}
-                        className="font-body flex-1 h-11 rounded-xl border-border focus:border-primary"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOtpSent(true)}
-                        className="h-11 px-4 border-primary text-primary font-body font-semibold hover:bg-primary hover:text-primary-foreground rounded-xl"
-                      >
-                        {otpSent ? "Resend" : "Get OTP"}
-                      </Button>
+                  {/* Organization Type Selector for Hospital Login */}
+                  {tab === "hospital" && (
+                    <div className="space-y-2 mb-4">
+                      <Label className="font-body font-semibold text-sm">Organization Type</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {loginOrgTypes.map((type) => (
+                          <button
+                            key={type.id}
+                            type="button"
+                            onClick={() => setOrgType(type.id)}
+                            className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-left transition-all font-body text-xs font-semibold ${orgType === type.id
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:border-primary/40"
+                              }`}
+                          >
+                            <span>{type.emoji}</span>
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-
-                  {otpSent && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      className="space-y-2"
-                    >
-                      <Label className="font-body font-semibold text-sm text-foreground">Enter OTP</Label>
-                      <Input
-                        type="text"
-                        maxLength={6}
-                        placeholder="6-digit OTP"
-                        className="font-body h-11 rounded-xl border-border focus:border-primary tracking-[0.3em] text-center text-lg"
-                      />
-                      {otpSent && (
-                        <p className="font-body text-xs text-secondary flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> OTP sent to {mobile || "+91 XXXXX XXXXX"}
-                        </p>
-                      )}
-                    </motion.div>
                   )}
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="font-body text-xs text-muted-foreground font-medium">or login with email</span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
+                  {/* Mobile OTP section */}
+                  {tab === "donor" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="font-body font-semibold text-sm text-foreground">Mobile Number</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="tel"
+                            placeholder="+91 98765 43210"
+                            value={mobile}
+                            onChange={(e) => setMobile(e.target.value)}
+                            className="font-body flex-1 h-11 rounded-xl border-border focus:border-primary"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setOtpSent(true)}
+                            className="h-11 px-4 border-primary text-primary font-body font-semibold hover:bg-primary hover:text-primary-foreground rounded-xl"
+                          >
+                            {otpSent ? "Resend" : "Get OTP"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {otpSent && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="space-y-2"
+                        >
+                          <Label className="font-body font-semibold text-sm text-foreground">Enter OTP</Label>
+                          <Input
+                            type="text"
+                            maxLength={6}
+                            placeholder="6-digit OTP"
+                            className="font-body h-11 rounded-xl border-border focus:border-primary tracking-[0.3em] text-center text-lg"
+                          />
+                          {otpSent && (
+                            <p className="font-body text-xs text-secondary flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> OTP sent to {mobile || "+91 XXXXX XXXXX"}
+                            </p>
+                          )}
+                        </motion.div>
+                      )}
+
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="font-body text-xs text-muted-foreground font-medium">or login with email</span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                    </>
+                  )}
 
                   <div className="space-y-2">
-                    <Label className="font-body font-semibold text-sm">Email Address</Label>
+                    <Label className="font-body font-semibold text-sm">
+                      {tab === "hospital" ? "Official Email" : "Email Address"}
+                    </Label>
                     <Input
                       type="email"
                       placeholder="you@example.com"
@@ -187,15 +226,36 @@ export default function LoginPage() {
 
                   <Link to="/dashboard">
                     <Button className="w-full h-12 font-body font-bold text-base bg-gradient-primary text-primary-foreground rounded-xl shadow-primary hover:opacity-90 mt-2">
-                      Sign In as {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      Login as {tab === "hospital"
+                        ? loginOrgTypes.find(o => o.id === orgType)?.label
+                        : tab.charAt(0).toUpperCase() + tab.slice(1)
+                      }
                     </Button>
                   </Link>
                 </TabsContent>
               ))}
             </Tabs>
 
+            <p className="font-body text-xs text-muted-foreground text-center mt-6">
+              {mode === "admin" ? (
+                <button
+                  onClick={() => setMode("donor")}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Back to User login
+                </button>
+              ) : (
+                <button
+                  onClick={() => setMode("admin")}
+                  className="text-primary font-medium hover:underline opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  Administrator Login
+                </button>
+              )}
+            </p>
+
             <p className="font-body text-xs text-muted-foreground text-center mt-4">
-              By signing in, you agree to our{" "}
+              By logging in, you agree to our{" "}
               <a href="#" className="text-primary hover:underline">Terms</a> &{" "}
               <a href="#" className="text-primary hover:underline">Privacy Policy</a>
             </p>
