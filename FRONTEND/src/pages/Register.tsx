@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Heart, ArrowLeft, Upload, CheckCircle2, Eye, EyeOff, ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/AuthContext";
 
 const donorTypes = [
   { id: "blood", label: "Blood", emoji: "🩸" },
@@ -26,11 +28,62 @@ function DonorRegister() {
   const [bloodGroup, setBloodGroup] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [gender, setGender] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  // Form fields
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [aadhaar, setAadhaar] = useState("");
+  const [dob, setDob] = useState("");
+  const [city, setCity] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
 
   const toggleType = (id: string) => {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  };
+
+  const handleSubmit = async () => {
+    setError("");
+    if (password !== confirmPass) {
+      setError("Passwords don't match");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.auth.registerDonor({
+        first_name: firstName,
+        last_name: lastName,
+        mobile,
+        aadhaar: aadhaar || undefined,
+        dob: dob || undefined,
+        gender: gender || undefined,
+        city,
+        pincode: pincode || undefined,
+        blood_group: bloodGroup,
+        donor_types: selected,
+        email,
+        password,
+      });
+      login("donor", firstName || "Donor");
+      navigate("/dashboard");
+    } catch (e: any) {
+      setError(e.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,17 +108,17 @@ function DonorRegister() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="font-body font-semibold text-sm">First Name</Label>
-              <Input placeholder="Arjun" className="h-11 rounded-xl font-body" />
+              <Input placeholder="Arjun" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="h-11 rounded-xl font-body" />
             </div>
             <div className="space-y-1.5">
               <Label className="font-body font-semibold text-sm">Last Name</Label>
-              <Input placeholder="Sharma" className="h-11 rounded-xl font-body" />
+              <Input placeholder="Sharma" value={lastName} onChange={(e) => setLastName(e.target.value)} className="h-11 rounded-xl font-body" />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label className="font-body font-semibold text-sm">Mobile Number</Label>
             <div className="flex gap-2">
-              <Input type="tel" placeholder="+91 98765 43210" className="h-11 rounded-xl font-body flex-1" />
+              <Input type="tel" placeholder="+91 98765 43210" value={mobile} onChange={(e) => setMobile(e.target.value)} className="h-11 rounded-xl font-body flex-1" />
               <Button
                 variant="outline"
                 onClick={() => setOtpSent(true)}
@@ -83,12 +136,12 @@ function DonorRegister() {
           )}
           <div className="space-y-1.5">
             <Label className="font-body font-semibold text-sm">Aadhaar Number</Label>
-            <Input placeholder="XXXX XXXX XXXX" className="h-11 rounded-xl font-body" />
+            <Input placeholder="XXXX XXXX XXXX" value={aadhaar} onChange={(e) => setAadhaar(e.target.value)} className="h-11 rounded-xl font-body" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="font-body font-semibold text-sm">Date of Birth</Label>
-              <Input type="date" className="h-11 rounded-xl font-body" />
+              <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="h-11 rounded-xl font-body" />
             </div>
             <div className="space-y-1.5">
               <Label className="font-body font-semibold text-sm">Gender</Label>
@@ -111,11 +164,11 @@ function DonorRegister() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="font-body font-semibold text-sm">City</Label>
-              <Input placeholder="Mumbai" className="h-11 rounded-xl font-body" />
+              <Input placeholder="Mumbai" value={city} onChange={(e) => setCity(e.target.value)} className="h-11 rounded-xl font-body" />
             </div>
             <div className="space-y-1.5">
               <Label className="font-body font-semibold text-sm">PIN Code</Label>
-              <Input placeholder="400001" className="h-11 rounded-xl font-body" />
+              <Input placeholder="400001" value={pincode} onChange={(e) => setPincode(e.target.value)} className="h-11 rounded-xl font-body" />
             </div>
           </div>
           <Button
@@ -218,7 +271,7 @@ function DonorRegister() {
           </div>
           <div className="space-y-1.5">
             <Label className="font-body font-semibold text-sm">Email Address</Label>
-            <Input type="email" placeholder="you@example.com" className="h-11 rounded-xl font-body" />
+            <Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 rounded-xl font-body" />
           </div>
           <div className="space-y-1.5">
             <Label className="font-body font-semibold text-sm">Password</Label>
@@ -226,6 +279,8 @@ function DonorRegister() {
               <Input
                 type={showPass ? "text" : "password"}
                 placeholder="Min 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="h-11 rounded-xl font-body pr-12"
               />
               <button
@@ -239,7 +294,7 @@ function DonorRegister() {
           </div>
           <div className="space-y-1.5">
             <Label className="font-body font-semibold text-sm">Confirm Password</Label>
-            <Input type="password" placeholder="••••••••" className="h-11 rounded-xl font-body" />
+            <Input type="password" placeholder="••••••••" value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} className="h-11 rounded-xl font-body" />
           </div>
           <div className="flex items-start gap-2 mt-2">
             <Checkbox id="terms" className="mt-0.5 border-primary data-[state=checked]:bg-primary" />
@@ -248,15 +303,20 @@ function DonorRegister() {
               <a href="#" className="text-primary hover:underline">Privacy Policy</a>, and consent to sharing my anonymized data for matching purposes.
             </label>
           </div>
+          {error && (
+            <p className="font-body text-sm text-blood font-semibold">{error}</p>
+          )}
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep(2)} className="flex-1 h-12 border-border font-body rounded-xl">
               <ChevronLeft className="w-4 h-4 mr-1" /> Back
             </Button>
-            <Link to="/dashboard" className="flex-1">
-              <Button className="w-full h-12 bg-gradient-primary text-primary-foreground font-body font-bold rounded-xl shadow-primary">
-                Create Account ✓
-              </Button>
-            </Link>
+            <Button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 h-12 bg-gradient-primary text-primary-foreground font-body font-bold rounded-xl shadow-primary"
+            >
+              {loading ? "Creating..." : "Create Account ✓"}
+            </Button>
           </div>
         </motion.div>
       )}
@@ -334,8 +394,54 @@ const orgTypes = [
 function HospitalRegister() {
   const [showPass, setShowPass] = useState(false);
   const [orgType, setOrgType] = useState("hospital");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  // Form fields
+  const [name, setName] = useState("");
+  const [regNumber, setRegNumber] = useState("");
+  const [license, setLicense] = useState("");
+  const [address, setAddress] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [contactMobile, setContactMobile] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const org = orgTypes.find((o) => o.id === orgType)!;
+
+  const handleSubmit = async () => {
+    setError("");
+    if (!name || !regNumber || !address || !contactPerson || !contactMobile || !contactEmail || !password) {
+      setError("Please fill in all required fields");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.auth.registerHospital({
+        name,
+        reg_number: regNumber,
+        license: license || undefined,
+        address,
+        city: address.split(",").slice(-2, -1)[0]?.trim() || "Mumbai",
+        contact_person: contactPerson,
+        contact_mobile: contactMobile,
+        contact_email: contactEmail,
+        password,
+      });
+      login("hospital", name, orgType as any);
+      navigate("/dashboard");
+    } catch (e: any) {
+      setError(e.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
@@ -376,31 +482,31 @@ function HospitalRegister() {
       >
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">{org.nameLabel}</Label>
-          <Input placeholder={org.namePlaceholder} className="h-11 rounded-xl font-body" />
+          <Input placeholder={org.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
           <Label className="font-body font-semibold text-sm">{org.regLabel}</Label>
-          <Input placeholder={org.regPlaceholder} className="h-11 rounded-xl font-body" />
+          <Input placeholder={org.regPlaceholder} value={regNumber} onChange={(e) => setRegNumber(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
           <Label className="font-body font-semibold text-sm">{org.licenseLabel}</Label>
-          <Input placeholder={org.licensePlaceholder} className="h-11 rounded-xl font-body" />
+          <Input placeholder={org.licensePlaceholder} value={license} onChange={(e) => setLicense(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Full Address</Label>
-          <Input placeholder="Street, Area, City, State - PIN" className="h-11 rounded-xl font-body" />
+          <Input placeholder="Street, Area, City, State - PIN" value={address} onChange={(e) => setAddress(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
           <Label className="font-body font-semibold text-sm">{org.contactLabel}</Label>
-          <Input placeholder={org.contactPlaceholder} className="h-11 rounded-xl font-body" />
+          <Input placeholder={org.contactPlaceholder} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="space-y-1.5">
           <Label className="font-body font-semibold text-sm">Contact Mobile</Label>
-          <Input type="tel" placeholder="+91 98765 43210" className="h-11 rounded-xl font-body" />
+          <Input type="tel" placeholder="+91 98765 43210" value={contactMobile} onChange={(e) => setContactMobile(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Official Email</Label>
-          <Input type="email" placeholder={org.emailPlaceholder} className="h-11 rounded-xl font-body" />
+          <Input type="email" placeholder={org.emailPlaceholder} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="h-11 rounded-xl font-body" />
         </div>
         <div className="col-span-2 space-y-1.5">
           <Label className="font-body font-semibold text-sm">Upload Documents</Label>
@@ -415,6 +521,8 @@ function HospitalRegister() {
             <Input
               type={showPass ? "text" : "password"}
               placeholder="Secure password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="h-11 rounded-xl font-body pr-12"
             />
             <button
@@ -428,11 +536,17 @@ function HospitalRegister() {
         </div>
       </motion.div>
 
-      <Link to="/dashboard?role=hospital">
-        <Button className="w-full h-12 bg-gradient-primary text-primary-foreground font-body font-bold rounded-xl shadow-primary">
-          {org.submitLabel}
-        </Button>
-      </Link>
+      {error && (
+        <p className="font-body text-sm text-blood font-semibold">{error}</p>
+      )}
+
+      <Button
+        onClick={handleSubmit}
+        disabled={loading}
+        className="w-full h-12 bg-gradient-primary text-primary-foreground font-body font-bold rounded-xl shadow-primary"
+      >
+        {loading ? "Registering..." : org.submitLabel}
+      </Button>
     </motion.div>
   );
 }
