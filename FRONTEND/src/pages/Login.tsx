@@ -9,9 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Mode = "donor" | "hospital" | "admin";
 
+const loginOrgTypes = [
+  { id: "hospital", label: "Hospital", emoji: "🏥" },
+  { id: "bloodbank", label: "Blood Bank", emoji: "🩸" },
+  { id: "orphanage", label: "Orphanage", emoji: "🏠" },
+  { id: "ngo", label: "NGO / Foundation", emoji: "🤝" },
+];
+
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [mode, setMode] = useState<Mode>("donor");
+  const [orgType, setOrgType] = useState("hospital");
   const [otpSent, setOtpSent] = useState(false);
   const [mobile, setMobile] = useState("");
   const [searchParams] = useSearchParams();
@@ -83,7 +91,7 @@ export default function LoginPage() {
             </div>
 
             <h1 className="font-display text-3xl font-bold text-foreground mb-1">
-              Sign In {mode === "admin" && "as Admin"}
+              Login {mode === "admin" && "as Admin"}
             </h1>
             {mode !== "admin" && (
               <p className="font-body text-sm text-muted-foreground mb-7">
@@ -101,13 +109,36 @@ export default function LoginPage() {
                     Donor
                   </TabsTrigger>
                   <TabsTrigger value="hospital" className="rounded-lg font-body font-semibold text-sm">
-                    Hospital
+                    Hospital / Org
                   </TabsTrigger>
                 </TabsList>
               )}
 
               {["donor", "hospital", "admin"].map((tab) => (
                 <TabsContent key={tab} value={tab} className="mt-6 space-y-4">
+                  {/* Organization Type Selector for Hospital Login */}
+                  {tab === "hospital" && (
+                    <div className="space-y-2 mb-4">
+                      <Label className="font-body font-semibold text-sm">Organization Type</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {loginOrgTypes.map((type) => (
+                          <button
+                            key={type.id}
+                            type="button"
+                            onClick={() => setOrgType(type.id)}
+                            className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-left transition-all font-body text-xs font-semibold ${orgType === type.id
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:border-primary/40"
+                              }`}
+                          >
+                            <span>{type.emoji}</span>
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Mobile OTP section */}
                   <div className="space-y-2">
                     <Label className="font-body font-semibold text-sm text-foreground">Mobile Number</Label>
@@ -189,7 +220,10 @@ export default function LoginPage() {
 
                   <Link to="/dashboard">
                     <Button className="w-full h-12 font-body font-bold text-base bg-gradient-primary text-primary-foreground rounded-xl shadow-primary hover:opacity-90 mt-2">
-                      Sign In as {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      Login as {tab === "hospital"
+                        ? loginOrgTypes.find(o => o.id === orgType)?.label
+                        : tab.charAt(0).toUpperCase() + tab.slice(1)
+                      }
                     </Button>
                   </Link>
                 </TabsContent>
@@ -215,7 +249,7 @@ export default function LoginPage() {
             </p>
 
             <p className="font-body text-xs text-muted-foreground text-center mt-4">
-              By signing in, you agree to our{" "}
+              By logging in, you agree to our{" "}
               <a href="#" className="text-primary hover:underline">Terms</a> &{" "}
               <a href="#" className="text-primary hover:underline">Privacy Policy</a>
             </p>
