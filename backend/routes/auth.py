@@ -119,7 +119,10 @@ def register_donor(req: DonorRegisterRequest):
         }).execute()
     except Exception as e:
         # Cleanup auth user if profile fails
-        supabase.auth.admin.delete_user(user_id)
+        try:
+            supabase.auth.admin.delete_user(user_id)
+        except Exception as delete_err:
+            print(f"[register_donor] Cleanup failed: {delete_err}")
         err_msg = str(e)
         if "duplicate key" in err_msg.lower():
             if "mobile" in err_msg:
