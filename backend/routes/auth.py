@@ -97,25 +97,36 @@ def register_donor(req: DonorRegisterRequest):
         raise HTTPException(status_code=500, detail="Failed to create auth user")
 
     # 2. Insert donor profile
-    res = supabase.table("donors").insert({
-        "id":                 user_id,
-        "name":               f"{req.first_name} {req.last_name}",
-        "mobile":             req.mobile,
-        "aadhaar":            req.aadhaar,
-        "dob":                req.dob,
-        "gender":             req.gender,
-        "city":               req.city,
-        "pincode":            req.pincode,
-        "blood_group":        req.blood_group,
-        "donor_types":        req.donor_types,
-        "hla_type":           [],
-        "is_available":       True,
-        "last_donation_date": None,
-        "trust_score":        50,
-        "is_verified":        False,
-        "lat":                req.lat,
-        "lng":                req.lng,
-    }).execute()
+    try:
+        res = supabase.table("donors").insert({
+            "id":                 user_id,
+            "name":               f"{req.first_name} {req.last_name}",
+            "mobile":             req.mobile,
+            "aadhaar":            req.aadhaar,
+            "dob":                req.dob,
+            "gender":             req.gender,
+            "city":               req.city,
+            "pincode":            req.pincode,
+            "blood_group":        req.blood_group,
+            "donor_types":        req.donor_types,
+            "hla_type":           [],
+            "is_available":       True,
+            "last_donation_date": None,
+            "trust_score":        50,
+            "is_verified":        False,
+            "lat":                req.lat,
+            "lng":                req.lng,
+        }).execute()
+    except Exception as e:
+        # Cleanup auth user if profile fails
+        supabase.auth.admin.delete_user(user_id)
+        err_msg = str(e)
+        if "duplicate key" in err_msg.lower():
+            if "mobile" in err_msg:
+                raise HTTPException(status_code=400, detail="Mobile number already registered")
+            if "aadhaar" in err_msg:
+                raise HTTPException(status_code=400, detail="Aadhaar number already registered")
+        raise HTTPException(status_code=400, detail=f"Registration failed: {err_msg}")
 
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create donor profile")
@@ -142,18 +153,26 @@ def register_hospital(req: HospitalRegisterRequest):
 
     user_id = auth_res.user.id if auth_res.user else None
 
-    res = supabase.table("hospitals").insert({
-        "id":          user_id,
-        "name":        req.name,
-        "reg_number":  req.reg_number,
-        "license":     req.license,
-        "address":     req.address,
-        "city":        req.city,
-        "contact":     req.contact_mobile,
-        "is_verified": False,
-        "lat":         req.lat,
-        "lng":         req.lng,
-    }).execute()
+    try:
+        res = supabase.table("hospitals").insert({
+            "id":          user_id,
+            "name":        req.name,
+            "reg_number":  req.reg_number,
+            "license":     req.license,
+            "address":     req.address,
+            "city":        req.city,
+            "contact":     req.contact_mobile,
+            "is_verified": False,
+            "lat":         req.lat,
+            "lng":         req.lng,
+        }).execute()
+    except Exception as e:
+        # Cleanup auth user if profile fails
+        supabase.auth.admin.delete_user(user_id)
+        err_msg = str(e)
+        if "duplicate key" in err_msg.lower():
+            raise HTTPException(status_code=400, detail="Registration number already exists")
+        raise HTTPException(status_code=400, detail=f"Registration failed: {err_msg}")
 
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create hospital profile")

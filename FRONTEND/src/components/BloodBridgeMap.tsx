@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 
 interface Donor {
-  id: number;
+  id: string | number;
   name: string;
   blood_group: string;
   city: string;

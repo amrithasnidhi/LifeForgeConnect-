@@ -13,7 +13,9 @@
  * ──────────────────────────────────────────────────────────────────
  */
 
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// In dev, BASE is empty so requests go to the same Vite origin (proxied → FastAPI).
+// In production, set VITE_API_URL to your deployed backend URL.
+const BASE = import.meta.env.VITE_API_URL ?? "";
 
 // ── Core fetch helper ─────────────────────────────────────────────────────────
 
@@ -23,12 +25,31 @@ async function req<T>(
     body?: unknown,
     params?: Record<string, string | number | boolean | undefined | null>
 ): Promise<T> {
-    const url = new URL(BASE + path);
-
-    if (params) {
-        Object.entries(params).forEach(([k, v]) => {
-            if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
-        });
+    // When BASE is empty, use relative path so Vite proxy handles it
+    // When BASE is set, use absolute URL
+    let url: URL | string;
+    
+    if (BASE) {
+        // Absolute URL - direct connection to backend
+        url = new URL(BASE + path);
+        if (params) {
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+            });
+        }
+        url = url.toString();
+    } else {
+        // Relative path - will be handled by Vite proxy
+        let relativePath = path;
+        if (params) {
+            const searchParams = new URLSearchParams();
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) searchParams.set(k, String(v));
+            });
+            const queryString = searchParams.toString();
+            if (queryString) relativePath += `?${queryString}`;
+        }
+        url = relativePath;
     }
 
     const headers: HeadersInit = { "Content-Type": "application/json" };
@@ -37,7 +58,7 @@ async function req<T>(
     const token = localStorage.getItem("lf_token");
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
@@ -69,6 +90,7 @@ export interface BloodDonor {
     trust: number; trust_score: number; is_verified: boolean;
     available: boolean; eligible_to_donate: boolean;
     last_donated: string; distance_km: number | null; distance: string;
+    lat?: number; lng?: number;
 }
 
 export interface BloodRequest {
@@ -232,7 +254,7 @@ export const api = {
             get<BloodRequest[]>("/blood/requests/open"),
 
         /** BloodBridge "Post Request" button (hospital) */
-        postRequest: (body: { hospital_id: string; blood_group: string; units: number; urgency: string; lat?: number; lng?: number }) =>
+        postRequest: (body: { hospital_id: string; blood_group: string; units: number; urgency: string; donor_id?: string; lat?: number; lng?: number }) =>
             post("/blood/requests", body),
 
         /** Shortage prediction widget */
@@ -287,6 +309,9 @@ export const api = {
             post<{ patient_hla: string[]; total_found: number; matches: MarrowMatch[] }>(
                 "/marrow/match", { patient_hla: patientHla, patient_id: patientId, min_match_percent: minMatchPercent }
             ),
+
+        contact: (body: { donor_id: string; patient_name?: string; urgency?: string; message?: string }) =>
+            post("/marrow/contact", body),
 
         /** MarrowMatch "Register as Donor" button */
         registerHla: (donorId: string, hlaType: string[]) =>

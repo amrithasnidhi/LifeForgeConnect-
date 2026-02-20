@@ -15,7 +15,7 @@ from typing import Optional
 from datetime import date
 
 from utils.db import supabase
-from utils.matching import days_since, days_until
+from utils.matching import days_since, days_until, blood_compatible
 
 router = APIRouter()
 
@@ -56,9 +56,9 @@ def get_donor_dashboard(donor_id: str):
     trust_raw   = d.get("trust_score", 50)
     trust_stars = round(trust_raw / 100 * 5, 1)
 
-    # Donation history from matches
+    # Donation history from matches (matches has no FK to blood_requests, so fetch separately)
     history_res = supabase.table("matches") \
-        .select("*, blood_requests(blood_group, urgency, hospitals(name)), platelet_requests(blood_group, hospitals(name))") \
+        .select("module, request_id, created_at") \
         .eq("donor_id", donor_id) \
         .eq("status", "fulfilled") \
         .order("created_at", desc=True) \
@@ -66,26 +66,52 @@ def get_donor_dashboard(donor_id: str):
         .execute()
 
     history = []
+    blood_ids = [m["request_id"] for m in (history_res.data or []) if m.get("module") == "blood" and m.get("request_id")]
+    platelet_ids = [m["request_id"] for m in (history_res.data or []) if m.get("module") == "platelet" and m.get("request_id")]
+
+    blood_map = {}
+    if blood_ids:
+        blood_req = supabase.table("blood_requests").select("id, blood_group, hospital_id").in_("id", blood_ids).execute()
+        for r in (blood_req.data or []):
+            blood_map[r["id"]] = dict(r, hospital_name="Unknown")
+        hosp_ids = [r["hospital_id"] for r in (blood_req.data or []) if r.get("hospital_id")]
+        if hosp_ids:
+            hosp_res = supabase.table("hospitals").select("id, name").in_("id", hosp_ids).execute()
+            hosp_map = {h["id"]: h["name"] for h in (hosp_res.data or [])}
+            for rid, r in blood_map.items():
+                r["hospital_name"] = hosp_map.get(r.get("hospital_id"), "Unknown")
+
+    platelet_map = {}
+    if platelet_ids:
+        plat_req = supabase.table("platelet_requests").select("id, blood_group, hospital_id").in_("id", platelet_ids).execute()
+        for r in (plat_req.data or []):
+            platelet_map[r["id"]] = dict(r, hospital_name="Unknown")
+        hosp_ids = [r["hospital_id"] for r in (plat_req.data or []) if r.get("hospital_id")]
+        if hosp_ids:
+            hosp_res = supabase.table("hospitals").select("id, name").in_("id", hosp_ids).execute()
+            hosp_map = {h["id"]: h["name"] for h in (hosp_res.data or [])}
+            for rid, r in platelet_map.items():
+                r["hospital_name"] = hosp_map.get(r.get("hospital_id"), "Unknown")
+
     for m in (history_res.data or []):
         module = m.get("module", "blood")
         created = m.get("created_at", "")[:10]
-        if module == "blood":
-            req = m.get("blood_requests") or {}
-            hosp = req.get("hospitals") or {}
+        req_id = m.get("request_id")
+        if module == "blood" and req_id and req_id in blood_map:
+            r = blood_map[req_id]
             history.append({
                 "date":     _fmt_date(created),
-                "type":     f"🩸 Blood ({req.get('blood_group','')})",
-                "hospital": hosp.get("name", "Unknown"),
+                "type":     f"🩸 Blood ({r.get('blood_group','')})",
+                "hospital": r.get("hospital_name", "Unknown"),
                 "status":   "Fulfilled",
                 "impact":   "2 lives saved",
             })
-        elif module == "platelet":
-            req = m.get("platelet_requests") or {}
-            hosp = req.get("hospitals") or {}
+        elif module == "platelet" and req_id and req_id in platelet_map:
+            r = platelet_map[req_id]
             history.append({
                 "date":     _fmt_date(created),
                 "type":     "⏱️ Platelets",
-                "hospital": hosp.get("name", "Unknown"),
+                "hospital": r.get("hospital_name", "Unknown"),
                 "status":   "Fulfilled",
                 "impact":   "1 patient helped",
             })
@@ -93,39 +119,109 @@ def get_donor_dashboard(donor_id: str):
     total_donations = len(history)
     lives_impacted  = sum(2 if "Blood" in h["type"] else 1 for h in history)
 
-    # Urgent nearby requests (blood + platelet) — top 3
-    blood_urgent = supabase.table("blood_requests") \
-        .select("*, hospitals(name, city)") \
-        .eq("status", "open") \
-        .eq("urgency", "critical") \
-        .limit(2) \
+    # Requests sent directly TO this donor (matches with status=pending)
+    direct_matches = supabase.table("matches") \
+        .select("module, request_id") \
+        .eq("donor_id", donor_id) \
+        .eq("status", "pending") \
         .execute()
+    direct_blood_ids = [m["request_id"] for m in (direct_matches.data or []) if m.get("module") == "blood" and m.get("request_id")]
+    direct_platelet_ids = [m["request_id"] for m in (direct_matches.data or []) if m.get("module") == "platelet" and m.get("request_id")]
+
+    # Explicitly fetch direct blood requests to ensure they appear even if not in top 20
+    direct_blood_reqs = []
+    if direct_blood_ids:
+        direct_res = supabase.table("blood_requests") \
+            .select("id, blood_group, urgency, hospital_id, created_at") \
+            .in_("id", direct_blood_ids) \
+            .eq("status", "open") \
+            .execute()
+        direct_blood_reqs = direct_res.data or []
+
+    # All open blood requests (global top 20)
+    global_blood_reqs = supabase.table("blood_requests") \
+        .select("id, blood_group, urgency, hospital_id, created_at") \
+        .eq("status", "open") \
+        .order("created_at", desc=True) \
+        .limit(20) \
+        .execute()
+    
+    # Merge direct and global requests
+    blood_map_merge = {r["id"]: r for r in (global_blood_reqs.data or [])}
+    for r in direct_blood_reqs:
+        blood_map_merge[r["id"]] = r
+    
+    blood_requests_all = list(blood_map_merge.values())
 
     platelet_urgent = supabase.table("platelet_requests") \
-        .select("*, hospitals(name, city)") \
+        .select("id, blood_group, hospital_id, created_at") \
         .eq("status", "open") \
-        .limit(1) \
+        .order("created_at", desc=True) \
+        .limit(10) \
         .execute()
 
+    donor_blood = (d.get("blood_group") or "").strip()
+
+    # Filter by donor compatibility; always include direct requests (sent to this donor)
+    blood_filtered = []
+    for r in blood_requests_all:
+        req_group = r.get("blood_group") or ""
+        is_direct = r.get("id") in direct_blood_ids
+        compatible = not donor_blood or blood_compatible(donor_blood, req_group)
+        if is_direct or compatible:
+            blood_filtered.append((r, is_direct))
+
+    platelet_filtered = []
+    for r in (platelet_urgent.data or []):
+        req_group = r.get("blood_group") or ""
+        is_direct = r.get("id") in direct_platelet_ids
+        compatible = not donor_blood or not req_group or blood_compatible(donor_blood, req_group)
+        if is_direct or compatible:
+            platelet_filtered.append((r, is_direct))
+
+    # Sort: direct requests first, then by created_at
+    blood_filtered.sort(key=lambda x: (not x[1], x[0].get("created_at") or ""), reverse=True)
+    platelet_filtered.sort(key=lambda x: (not x[1], x[0].get("created_at") or ""), reverse=True)
+
+    hosp_ids = set()
+    for r, _ in blood_filtered[:5]:
+        if r.get("hospital_id"):
+            hosp_ids.add(r["hospital_id"])
+    for r, _ in platelet_filtered[:3]:
+        if r.get("hospital_id"):
+            hosp_ids.add(r["hospital_id"])
+
+    hosp_map = {}
+    if hosp_ids:
+        hosp_res = supabase.table("hospitals").select("id, name, city").in_("id", list(hosp_ids)).execute()
+        hosp_map = {h["id"]: h for h in (hosp_res.data or [])}
+
     urgent = []
-    for r in (blood_urgent.data or []):
-        h = r.get("hospitals") or {}
+    for r, is_direct in blood_filtered[:5]:
+        h = hosp_map.get(r.get("hospital_id"), {})
+        urg = (r.get("urgency") or "urgent").upper()
+        hosp_name = (f"{h.get('name','')}, {h.get('city','')}".strip(", ") if h else "") or "Unknown Hospital"
+        if is_direct:
+            hosp_name = hosp_name + " (sent to you)"
         urgent.append({
             "type":     "🩸",
             "module":   "BloodBridge",
             "group":    r.get("blood_group", ""),
-            "hospital": f"{h.get('name','')}, {h.get('city','')}",
+            "hospital": hosp_name,
             "distance": "Nearby",
-            "urgency":  "CRITICAL",
+            "urgency":  urg,
             "time":     "Recently",
         })
-    for r in (platelet_urgent.data or []):
-        h = r.get("hospitals") or {}
+    for r, is_direct in platelet_filtered[:3]:
+        h = hosp_map.get(r.get("hospital_id"), {})
+        hosp_name = (f"{h.get('name','')}, {h.get('city','')}".strip(", ") if h else "") or "Unknown Hospital"
+        if is_direct:
+            hosp_name = hosp_name + " (sent to you)"
         urgent.append({
             "type":     "⏱️",
             "module":   "PlateletAlert",
             "group":    r.get("blood_group", "—"),
-            "hospital": f"{h.get('name','')}, {h.get('city','')}",
+            "hospital": hosp_name,
             "distance": "Nearby",
             "urgency":  "URGENT",
             "time":     "Recently",

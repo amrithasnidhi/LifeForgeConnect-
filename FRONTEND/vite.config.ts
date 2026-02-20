@@ -7,9 +7,21 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: 8082,
     hmr: {
       overlay: false,
+    },
+    proxy: {
+      // Any request to /auth/*, /blood/*, /thal/*, etc. is forwarded to FastAPI (port 8001)
+      "/auth": { target: "http://localhost:8001", changeOrigin: true },
+      "/blood": { target: "http://localhost:8001", changeOrigin: true },
+      "/thal": { target: "http://localhost:8001", changeOrigin: true },
+      "/platelet": { target: "http://localhost:8001", changeOrigin: true },
+      "/marrow": { target: "http://localhost:8001", changeOrigin: true },
+      "/organ": { target: "http://localhost:8001", changeOrigin: true },
+      "/milk": { target: "http://localhost:8001", changeOrigin: true },
+      "/dashboard": { target: "http://localhost:8001", changeOrigin: true },
+      "/stats": { target: "http://localhost:8001", changeOrigin: true },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
@@ -19,3 +31,4 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
+
