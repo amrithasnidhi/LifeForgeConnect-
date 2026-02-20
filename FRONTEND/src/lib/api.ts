@@ -25,14 +25,31 @@ async function req<T>(
     body?: unknown,
     params?: Record<string, string | number | boolean | undefined | null>
 ): Promise<T> {
-    // When BASE is empty, use window.location.origin so `new URL()` doesn't throw on relative paths
-    const base = BASE || window.location.origin;
-    const url = new URL(base + path);
-
-    if (params) {
-        Object.entries(params).forEach(([k, v]) => {
-            if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
-        });
+    // When BASE is empty, use relative path so Vite proxy handles it
+    // When BASE is set, use absolute URL
+    let url: URL | string;
+    
+    if (BASE) {
+        // Absolute URL - direct connection to backend
+        url = new URL(BASE + path);
+        if (params) {
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+            });
+        }
+        url = url.toString();
+    } else {
+        // Relative path - will be handled by Vite proxy
+        let relativePath = path;
+        if (params) {
+            const searchParams = new URLSearchParams();
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) searchParams.set(k, String(v));
+            });
+            const queryString = searchParams.toString();
+            if (queryString) relativePath += `?${queryString}`;
+        }
+        url = relativePath;
     }
 
     const headers: HeadersInit = { "Content-Type": "application/json" };
@@ -41,7 +58,7 @@ async function req<T>(
     const token = localStorage.getItem("lf_token");
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,

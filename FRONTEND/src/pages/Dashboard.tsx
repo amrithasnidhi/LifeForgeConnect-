@@ -1,48 +1,122 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Heart, Bell, MapPin, CheckCircle2, AlertCircle, Clock,
   Users, TrendingUp, Activity, Plus, Eye, Settings, LogOut,
-  Shield, Star, ChevronRight, BarChart3
+  Shield, Star, ChevronRight, BarChart3, Loader2, RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/AuthContext";
+import { api, getCurrentUserId, DonorDashboard as DonorDashboardType } from "@/lib/api";
 
-const urgentRequests = [
-  { type: "🩸", module: "BloodBridge", group: "O-", hospital: "KEM Hospital, Mumbai", distance: "2.3 km", urgency: "CRITICAL", time: "3 hrs ago" },
-  { type: "⏱️", module: "PlateletAlert", group: "B+", hospital: "Tata Memorial, Mumbai", distance: "4.1 km", urgency: "URGENT", time: "1 hr ago" },
-  { type: "🧬", module: "MarrowMatch", group: "HLA: A*02", hospital: "AIIMS, Delhi", distance: "Remote", urgency: "HIGH", time: "6 hrs ago" },
-];
-
-const matchHistory = [
-  { date: "Feb 15, 2025", type: "🩸 Blood (O+)", hospital: "Lilavati Hospital", status: "Fulfilled", impact: "3 lives saved" },
-  { date: "Jan 28, 2025", type: "⏱️ Platelets", hospital: "Kokilaben Hospital", status: "Fulfilled", impact: "1 patient helped" },
-  { date: "Jan 10, 2025", type: "🩸 Blood (O+)", hospital: "Breach Candy Hospital", status: "Fulfilled", impact: "2 lives saved" },
-];
+const MODULE_ROUTES: Record<string, string> = {
+  BloodBridge: "/blood-bridge",
+  PlateletAlert: "/platelet-alert",
+  MarrowMatch: "/marrow-match",
+};
 
 function DonorDashboard() {
   const [available, setAvailable] = useState(true);
+  const [data, setData] = useState<DonorDashboardType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const { userName, profile } = useAuth();
 
-  const name = profile?.name || userName || "Donor";
-  const initial = name.charAt(0).toUpperCase();
-  const bloodGroup = profile?.blood_group || "—";
-  const city = profile?.city || "—";
-  const isVerified = profile?.is_verified ?? false;
-  const trustScore = profile?.trust_score ? (profile.trust_score / 10).toFixed(1) : "—";
-  const donorTypes = profile?.donor_types || [];
+  const donorId = getCurrentUserId();
+
+  useEffect(() => {
+    if (!donorId) {
+      setLoading(false);
+      setError("Please log in to view your dashboard.");
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    setData(null);
+    api.dashboard
+      .getDonor(donorId)
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          const msg = e.message || "";
+          if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("404")) {
+            setData(null);
+            setError("");
+          } else {
+            setError(msg || "Failed to load dashboard");
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [donorId]);
+
+  const p = data?.profile;
+  const stats = data?.stats;
+  const urgentRequests = data?.urgent_requests ?? [];
+  const donationHistory = data?.donation_history ?? [];
+
+  const name = p?.name || profile?.name || userName || "Donor";
+  const initial = (p?.initial || name.charAt(0)).toUpperCase();
+  const bloodGroup = p?.blood_group || profile?.blood_group || "—";
+  const city = p?.city || profile?.city || "—";
+  const isVerified = p?.is_verified ?? profile?.is_verified ?? false;
+  const trustScore = stats?.trust_score != null ? String(stats.trust_score) : (profile?.trust_score ? (profile.trust_score / 10).toFixed(1) : "—");
+  const donorTypes = p?.donor_types || profile?.donor_types || [];
   const donorTypeSummary = [
     bloodGroup !== "—" ? `${bloodGroup} Blood` : null,
     donorTypes.includes("marrow") ? "Marrow Pledged" : null,
     city !== "—" ? `${city}` : null,
   ].filter(Boolean).join(" · ") || "—";
+  const nextEligible = stats?.next_eligible ?? "—";
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border-2 border-dashed border-border bg-card p-8 text-center">
+        <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+        <p className="font-body text-muted-foreground mb-4">{error}</p>
+        <Button variant="outline" onClick={() => window.location.reload()} className="font-body">
+          <RefreshCw className="w-4 h-4 mr-2" /> Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const showProfileBanner = !data && donorId;
 
   return (
     <div className="space-y-6">
+      {showProfileBanner && (
+        <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-primary shrink-0" />
+          <div>
+            <p className="font-body text-sm font-medium text-foreground">Profile not found in database</p>
+            <p className="font-body text-xs text-muted-foreground mb-1">
+              Register as a donor to see urgent requests and track your donation history.
+            </p>
+            <Button asChild size="sm" variant="outline" className="border-primary text-primary font-body mt-1">
+              <Link to="/register">Complete registration</Link>
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Profile card */}
       <div className="rounded-2xl bg-gradient-hero p-6 text-primary-foreground relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-accent/10 blur-2xl" />
@@ -87,7 +161,7 @@ function DonorDashboard() {
           { icon: "🩸", label: "Blood Group", value: bloodGroup, color: "text-blood" },
           { icon: "📍", label: "City", value: city, color: "text-primary" },
           { icon: "⭐", label: "Trust Score", value: trustScore, color: "text-accent" },
-          { icon: "📅", label: "Next Eligible", value: "Mar 15", color: "text-secondary" },
+          { icon: "📅", label: "Next Eligible", value: nextEligible, color: "text-secondary" },
         ].map(({ icon, label, value, color }) => (
           <div key={label} className="rounded-xl bg-card border border-border p-4 shadow-card text-center">
             <div className="text-2xl mb-1">{icon}</div>
@@ -135,12 +209,24 @@ function DonorDashboard() {
                   {req.hospital} · <MapPin className="w-3 h-3 inline" /> {req.distance} · {req.time}
                 </div>
               </div>
-              <Button size="sm" className="bg-gradient-primary text-primary-foreground font-body font-semibold rounded-lg shadow-primary">
-                Respond
+              <Button
+                size="sm"
+                asChild
+                className="bg-gradient-primary text-primary-foreground font-body font-semibold rounded-lg shadow-primary"
+              >
+                <Link to={MODULE_ROUTES[req.module] || "/blood-bridge"}>
+                  Respond
+                </Link>
               </Button>
             </motion.div>
           ))}
         </div>
+        {urgentRequests.length === 0 && (
+          <div className="rounded-xl border-2 border-dashed border-border bg-card p-6 text-center">
+            <CheckCircle2 className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+            <p className="font-body text-sm text-muted-foreground">No urgent requests right now. Check back later!</p>
+          </div>
+        )}
       </div>
 
       {/* Match history */}
@@ -160,19 +246,27 @@ function DonorDashboard() {
               </tr>
             </thead>
             <tbody>
-              {matchHistory.map((row, i) => (
-                <tr key={i} className="border-t border-border hover:bg-muted/30 transition-colors">
-                  <td className="font-body text-sm px-4 py-3 text-muted-foreground">{row.date}</td>
-                  <td className="font-body text-sm px-4 py-3 font-medium">{row.type}</td>
-                  <td className="font-body text-sm px-4 py-3 text-muted-foreground">{row.hospital}</td>
-                  <td className="px-4 py-3">
-                    <Badge className="bg-secondary/15 text-secondary border-0 font-body text-xs">
-                      <CheckCircle2 className="w-3 h-3 mr-1" /> {row.status}
-                    </Badge>
+              {donationHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="font-body text-sm text-muted-foreground px-4 py-8 text-center">
+                    No donation history yet. Respond to urgent requests to get started!
                   </td>
-                  <td className="font-body text-sm px-4 py-3 text-accent font-semibold">{row.impact}</td>
                 </tr>
-              ))}
+              ) : (
+                donationHistory.map((row, i) => (
+                  <tr key={i} className="border-t border-border hover:bg-muted/30 transition-colors">
+                    <td className="font-body text-sm px-4 py-3 text-muted-foreground">{row.date}</td>
+                    <td className="font-body text-sm px-4 py-3 font-medium">{row.type}</td>
+                    <td className="font-body text-sm px-4 py-3 text-muted-foreground">{row.hospital}</td>
+                    <td className="px-4 py-3">
+                      <Badge className="bg-secondary/15 text-secondary border-0 font-body text-xs">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> {row.status}
+                      </Badge>
+                    </td>
+                    <td className="font-body text-sm px-4 py-3 text-accent font-semibold">{row.impact}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -193,22 +287,66 @@ function OrgDashboardRouter() {
 }
 
 function HospitalDashboard() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const hospitalId = getCurrentUserId();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!hospitalId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    api.dashboard.getHospital(hospitalId)
+      .then(setData)
+      .catch((e) => setError(e.message || "Failed to load dashboard"))
+      .finally(() => setLoading(false));
+  }, [hospitalId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border-2 border-dashed border-border bg-card p-8 text-center">
+        <p className="font-body text-muted-foreground mb-4">{error}</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  const h = data?.hospital;
+  const stats = data?.stats;
+  const activeRequests = data?.active_requests ?? [];
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-gradient-hero p-6 text-primary-foreground">
-        <h2 className="font-display text-2xl font-bold mb-2">🏥 Hospital Dashboard</h2>
-        <p className="font-body text-primary-foreground/70 text-sm mb-4">Verified Hospital · NABH Accredited</p>
-        <Button className="bg-primary-foreground text-primary font-body font-bold rounded-xl">
+        <h2 className="font-display text-2xl font-bold mb-2">🏥 {h?.name || "Hospital Dashboard"}</h2>
+        <p className="font-body text-primary-foreground/70 text-sm mb-4">
+          {h?.is_verified ? "Verified Hospital" : "Verification Pending"} · {h?.city}
+        </p>
+        <Button
+          onClick={() => navigate("/blood-bridge")}
+          className="bg-primary-foreground text-primary font-body font-bold rounded-xl"
+        >
           <Plus className="w-4 h-4 mr-2" /> Post Urgent Blood Request
         </Button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: "📋", label: "Active Requests", value: "4", color: "text-platelet" },
-          { icon: "✅", label: "Matched This Month", value: "23", color: "text-secondary" },
-          { icon: "🩸", label: "Units Received", value: "187", color: "text-blood" },
-          { icon: "⏱️", label: "Avg Match Time", value: "18m", color: "text-organ" },
+          { icon: "📋", label: "Active Requests", value: stats?.active_requests || 0, color: "text-platelet" },
+          { icon: "✅", label: "Matched This Month", value: stats?.matched_this_month || 0, color: "text-secondary" },
+          { icon: "🩸", label: "Units Received", value: stats?.units_received || 0, color: "text-blood" },
+          { icon: "⏱️", label: "Avg Match Time", value: stats?.avg_match_time || "—", color: "text-organ" },
         ].map(({ icon, label, value, color }) => (
           <div key={label} className="rounded-xl bg-card border border-border p-4 shadow-card text-center">
             <div className="text-2xl mb-1">{icon}</div>
@@ -221,35 +359,37 @@ function HospitalDashboard() {
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Active Blood Requests</h3>
         <div className="space-y-3">
-          {[
-            { group: "O-", units: 3, urgency: "CRITICAL", matched: 2, posted: "30 min ago" },
-            { group: "AB+", units: 2, urgency: "URGENT", matched: 1, posted: "2 hrs ago" },
-            { group: "B+ Platelets", units: 1, urgency: "URGENT", matched: 0, posted: "4 hrs ago" },
-          ].map((req, i) => (
-            <div key={i} className="rounded-xl border-2 border-border bg-card p-4 flex items-center gap-4">
-              <div className="text-2xl">🩸</div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-body font-bold text-sm">{req.group}</span>
-                  <span className="font-body text-xs text-muted-foreground">· {req.units} unit(s)</span>
-                  <Badge className={`text-xs border-0 font-body ${req.urgency === "CRITICAL" ? "bg-blood/15 text-blood" : "bg-platelet/15 text-platelet"}`}>
-                    {req.urgency}
-                  </Badge>
-                </div>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {req.matched} donors matched · Posted {req.posted}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="border-border font-body text-xs rounded-lg">
-                  <Eye className="w-3 h-3 mr-1" /> View
-                </Button>
-                <Button size="sm" className="bg-gradient-primary text-primary-foreground font-body text-xs rounded-lg">
-                  Contact ({req.matched})
-                </Button>
-              </div>
+          {activeRequests.length === 0 ? (
+            <div className="p-10 text-center border-2 border-dashed border-border rounded-2xl">
+              <p className="font-body text-muted-foreground">No active requests found.</p>
             </div>
-          ))}
+          ) : (
+            activeRequests.map((req: any, i: number) => (
+              <div key={req.id || i} className="rounded-xl border-2 border-border bg-card p-4 flex items-center gap-4">
+                <div className="text-2xl">{req.module === "BloodBridge" ? "🩸" : "⏱️"}</div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body font-bold text-sm">{req.group}</span>
+                    <span className="font-body text-xs text-muted-foreground">· {req.units} unit(s)</span>
+                    <Badge className={`text-xs border-0 font-body ${req.urgency === "CRITICAL" ? "bg-blood/15 text-blood" : "bg-platelet/15 text-platelet"}`}>
+                      {req.urgency}
+                    </Badge>
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">
+                    {req.matched} donors matched · Posted {req.posted}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="border-border font-body text-xs rounded-lg">
+                    <Eye className="w-3 h-3 mr-1" /> View
+                  </Button>
+                  <Button size="sm" className="bg-gradient-primary text-primary-foreground font-body text-xs rounded-lg">
+                    Contact ({req.matched})
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

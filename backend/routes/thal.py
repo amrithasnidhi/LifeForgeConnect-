@@ -263,15 +263,22 @@ def register_thal_patient(body: ThalPatientBody):
 
     next_date = last + timedelta(days=freq)
 
-    res = supabase.table("thal_patients").insert({
-        "name":                       body.name,
-        "blood_group":                body.blood_group,
-        "hospital_id":                body.hospital_id,
-        "transfusion_frequency_days": freq,
-        "last_transfusion_date":      last.isoformat(),
-        "next_transfusion_date":      next_date.isoformat(),
-        "dob":                        body.dob,
-    }).execute()
+    try:
+        res = supabase.table("thal_patients").insert({
+            "name":                       body.name,
+            "blood_group":                body.blood_group,
+            "hospital_id":                body.hospital_id,
+            "transfusion_frequency_days": freq,
+            "last_transfusion_date":      last.isoformat(),
+            "next_transfusion_date":      next_date.isoformat(),
+            "dob":                        body.dob,
+        }).execute()
+    except Exception as e:
+        # Catch UUID errors or foreign key violations
+        err_msg = str(e)
+        if "22P02" in err_msg:
+            raise HTTPException(status_code=400, detail="Invalid Hospital ID format (must be a valid UUID)")
+        raise HTTPException(status_code=500, detail=f"Database error: {err_msg}")
 
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to register patient")

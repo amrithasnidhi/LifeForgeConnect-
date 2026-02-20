@@ -4,7 +4,7 @@ LifeForge Connect — FastAPI Backend
 Architecture: FastAPI → Supabase (PostgreSQL via supabase-py)
 
 Run locally:
-    uvicorn main:app --reload --port 8000
+    uvicorn main:app --reload --port 8001
 """
 
 from fastapi import FastAPI
@@ -19,12 +19,12 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# "*" covers every localhost port during dev (8080, 8081, 5173, 3000 …)
-# For production, replace "*" with your exact deployed domain.
+# Regex allows any localhost port in dev + Vercel/Netlify previews in prod.
+# For production, replace the localhost regex with your exact deployed domain.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,   # must be False when allow_origins=["*"]
+    allow_origin_regex=r"http://localhost:\d+|http://127\.0\.0\.1:\d+|https://.*\.(vercel|netlify)\.app",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

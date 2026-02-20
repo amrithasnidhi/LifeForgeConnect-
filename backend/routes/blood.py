@@ -120,7 +120,9 @@ def get_open_blood_requests():
 
     for r in (res.data or []):
         hospital = r.get("hospitals") or {}
-        created  = datetime.fromisoformat(r["created_at"].replace("Z", ""))
+        # Ensure 'created' is naive UTC to match 'now = datetime.utcnow()'
+        created_str = r["created_at"].replace("Z", "").split("+")[0]
+        created  = datetime.fromisoformat(created_str)
         elapsed  = now - created
         hours_elapsed = elapsed.total_seconds() / 3600
 
@@ -167,69 +169,115 @@ def post_blood_request(body: BloodRequestBody):
     2. If donor_id provided, creates a record in 'matches' and alerts that donor.
     3. If no donor_id, SMS-alerts top 5 compatible nearby donors.
     """
-    # Create the request
-    res = supabase.table("blood_requests").insert({
-        "hospital_id": body.hospital_id,
-        "blood_group": body.blood_group,
-        "units":       body.units,
-        "urgency":     body.urgency,
-        "status":      "open",
-        "lat":         body.lat,
-        "lng":         body.lng,
-    }).execute()
+    try:
+        # Resolve hospital_id: if invalid or missing, use first available hospital (for demo/guest)
+        hospital_id = body.hospital_id
+        try:
+            check = supabase.table("hospitals").select("id").eq("id", hospital_id).execute()
+            if not check.data or len(check.data) == 0:
+                fallback = supabase.table("hospitals").select("id").limit(1).execute()
+                if fallback.data and len(fallback.data) > 0:
+                    hospital_id = fallback.data[0]["id"]
+                else:
+                    raise HTTPException(status_code=400, detail="No hospital found. Run schema seed first.")
+        except HTTPException:
+            raise
+        except Exception:
+            fallback = supabase.table("hospitals").select("id").limit(1).execute()
+            if fallback.data and len(fallback.data) > 0:
+                hospital_id = fallback.data[0]["id"]
+            else:
+                raise HTTPException(status_code=400, detail="No hospital found. Run schema seed first.")
 
-    if not res.data:
-        raise HTTPException(status_code=500, detail="Failed to create blood request")
-
-    request_id = res.data[0]["id"]
-    sms_count = 0
-
-    # Get hospital name for the SMS
-    hosp = supabase.table("hospitals").select("name, city").eq("id", body.hospital_id).single().execute()
-    hosp_name = hosp.data["name"] if hosp.data else "a hospital"
-    hosp_city = hosp.data["city"] if hosp.data else ""
-
-    if body.donor_id:
-        # Direct request to a specific donor
-        supabase.table("matches").insert({
-            "module": "blood",
-            "donor_id": body.donor_id,
-            "request_id": request_id,
-            "status": "pending"
+        # Create the request
+        res = supabase.table("blood_requests").insert({
+            "hospital_id": hospital_id,
+            "blood_group": body.blood_group,
+            "units":       body.units,
+            "urgency":     body.urgency,
+            "status":      "open",
+            "lat":         body.lat,
+            "lng":         body.lng,
         }).execute()
-        
-        donor = supabase.table("donors").select("mobile").eq("id", body.donor_id).single().execute()
-        if donor.data and donor.data.get("mobile"):
-            msg = (
-                f"🩸 DIRECT REQUEST: {body.blood_group} needed at {hosp_name}, {hosp_city}. "
-                f"You were specifically matched! Reply YES to confirm. LifeForge."
-            )
-            sms_count = alert_donors([donor.data["mobile"]], msg)
-    else:
-        # Broadcast to compatible donors
-        donors = supabase.table("donors") \
-            .select("mobile, blood_group, name") \
-            .eq("is_available", True) \
-            .not_.is_("mobile", "null") \
-            .execute()
 
-        mobiles = [
-            d["mobile"] for d in (donors.data or [])
-            if blood_compatible(d.get("blood_group", ""), body.blood_group)
-        ][:5]
+        if not res.data:
+            error_msg = "Failed to create blood request"
+            if hasattr(res, 'error') and res.error:
+                error_msg = f"{error_msg}: {res.error}"
+            raise HTTPException(status_code=500, detail=error_msg)
 
-        msg = (
-            f"🩸 URGENT: {body.blood_group} blood needed at {hosp_name}, {hosp_city}. "
-            f"Reply YES or visit lifeforge.in. LifeForge Connect."
-        )
-        sms_count = alert_donors(mobiles, msg)
+        request_id = res.data[0]["id"]
+        sms_count = 0
 
-    return {
-        "success":      True,
-        "request_id":   request_id,
-        "donors_alerted": sms_count,
-        "message":      f"Request posted. {sms_count} donor(s) alerted via SMS.",
-    }
+        # Get hospital name for the SMS
+        try:
+            hosp = supabase.table("hospitals").select("name, city").eq("id", hospital_id).single().execute()
+            hosp_name = hosp.data["name"] if hosp.data else "a hospital"
+            hosp_city = hosp.data["city"] if hosp.data else ""
+        except Exception as e:
+            # Log but don't fail - use defaults
+            print(f"Warning: Could not fetch hospital details: {e}")
+            hosp_name = "a hospital"
+            hosp_city = ""
+
+        if body.donor_id:
+            # Direct request to a specific donor
+            try:
+                supabase.table("matches").insert({
+                    "module": "blood",
+                    "donor_id": body.donor_id,
+                    "request_id": request_id,
+                    "status": "pending"
+                }).execute()
+                
+                donor = supabase.table("donors").select("mobile").eq("id", body.donor_id).single().execute()
+                if donor.data and donor.data.get("mobile"):
+                    msg = (
+                        f"🩸 DIRECT REQUEST: {body.blood_group} needed at {hosp_name}, {hosp_city}. "
+                        f"You were specifically matched! Reply YES to confirm. LifeForge."
+                    )
+                    try:
+                        sms_count = alert_donors([donor.data["mobile"]], msg)
+                    except Exception as e:
+                        print(f"Warning: SMS alert failed: {e}")
+            except Exception as e:
+                print(f"Warning: Failed to create match or alert donor: {e}")
+        else:
+            # Broadcast to compatible donors
+            try:
+                donors = supabase.table("donors") \
+                    .select("mobile, blood_group, name") \
+                    .eq("is_available", True) \
+                    .not_.is_("mobile", "null") \
+                    .execute()
+
+                mobiles = [
+                    d["mobile"] for d in (donors.data or [])
+                    if blood_compatible(d.get("blood_group", ""), body.blood_group)
+                ][:5]
+
+                msg = (
+                    f"🩸 URGENT: {body.blood_group} blood needed at {hosp_name}, {hosp_city}. "
+                    f"Reply YES or visit lifeforge.in. LifeForge Connect."
+                )
+                try:
+                    sms_count = alert_donors(mobiles, msg)
+                except Exception as e:
+                    print(f"Warning: SMS alert failed: {e}")
+            except Exception as e:
+                print(f"Warning: Failed to fetch or alert donors: {e}")
+
+        return {
+            "success":      True,
+            "request_id":   request_id,
+            "donors_alerted": sms_count,
+            "message":      f"Request posted. {sms_count} donor(s) alerted via SMS.",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in post_blood_request: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 # ── GET /blood/shortage ───────────────────────────────────────────────────────
