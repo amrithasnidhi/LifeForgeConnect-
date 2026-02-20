@@ -8,10 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { api, MilkDonor, MilkBankRow, MilkShortageAlert, getCurrentUserId } from "@/lib/api";
+import { api, MilkDonor, MilkBankRow, MilkShortageAlert, getCurrentUserId, isLoggedIn } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/AuthContext";
 
 export default function MilkBridge() {
+  const { role } = useAuth();
+  // ... rest of the states same
   const [donors, setDonors] = useState<MilkDonor[]>([]);
   const [milkBank, setMilkBank] = useState<MilkBankRow[]>([]);
   const [shortageAlerts, setShortageAlerts] = useState<MilkShortageAlert[]>([]);
@@ -49,11 +52,11 @@ export default function MilkBridge() {
 
   const handleRegisterDonor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const donorId = getCurrentUserId();
-    if (!donorId) {
+    if (!isLoggedIn()) {
       toast.error("Please login to register as a donor");
       return;
     }
+    const donorId = getCurrentUserId();
 
     if (!formData.babyAge || formData.qty <= 0) {
       toast.error("Please fill in baby's age and quantity");
@@ -62,7 +65,6 @@ export default function MilkBridge() {
 
     setIsSubmitting(true);
     try {
-      // Parse baby age e.g. "3 months" -> 3
       const ageM = parseInt(formData.babyAge) || 1;
       await api.milk.registerDonor({
         donor_id: donorId,
@@ -72,7 +74,7 @@ export default function MilkBridge() {
       });
       toast.success("Successfully registered as a donor!");
       setFormData({ babyAge: "", qty: 0, location: "" });
-      fetchData(); // Refresh list
+      fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to register as donor");
     } finally {
@@ -81,14 +83,26 @@ export default function MilkBridge() {
   };
 
   const handleRequestDonation = (donor: MilkDonor) => {
+    if (!isLoggedIn()) {
+      toast.error("Please login to request milk donation");
+      return;
+    }
     toast.success(`Request sent to ${donor.name}! Our coordination team will contact them.`);
   };
 
   const handleRespondToAlert = (alert: MilkShortageAlert) => {
+    if (!isLoggedIn()) {
+      toast.error("Please login to respond to shortage alerts");
+      return;
+    }
     toast.success(`Intent recorded! Thank you for offering to help ${alert.hospital}. We will contact you shortly to coordinate.`);
   };
 
   const handleViewQR = (id: string) => {
+    if (!isLoggedIn()) {
+      toast.error("Please login to verify Milk Passport™ records");
+      return;
+    }
     toast.info(`Milk Passport™ QR for ${id} generated. Scanning verifies pasteurization and donor health history.`);
   };
 
@@ -216,7 +230,13 @@ export default function MilkBridge() {
                 <div className="flex items-center justify-between px-1">
                   <h3 className="font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">Critical Shortages</h3>
                   <button
-                    onClick={() => setShowShortageModal(true)}
+                    onClick={() => {
+                      if (role !== "hospital") {
+                        toast.error("Only verified hospitals can post shortage alerts.");
+                        return;
+                      }
+                      setShowShortageModal(true);
+                    }}
                     className="text-[10px] font-bold text-blood hover:underline uppercase tracking-tighter"
                   >
                     + Post Need

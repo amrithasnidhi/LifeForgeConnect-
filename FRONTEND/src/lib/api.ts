@@ -257,6 +257,14 @@ export const api = {
         postRequest: (body: { hospital_id: string; blood_group: string; units: number; urgency: string; donor_id?: string; lat?: number; lng?: number }) =>
             post("/blood/requests", body),
 
+        /** Request a specific donor (hospital) */
+        requestDonor: (body: { hospital_id: string; donor_id: string; blood_group: string; units: number; urgency: string }) =>
+            post("/blood/donors/request", body),
+
+        /** Get requests matching donor's group (donor dashboard) */
+        getRequestsForDonor: (donorId: string) =>
+            get<BloodRequest[]>("/blood/requests/for-donor", { donor_id: donorId }),
+
         /** Shortage prediction widget */
         getShortage: () =>
             get<BloodShortage[]>("/blood/shortage"),

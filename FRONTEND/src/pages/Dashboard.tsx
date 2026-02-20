@@ -4,13 +4,18 @@ import { motion } from "framer-motion";
 import {
   Heart, Bell, MapPin, CheckCircle2, AlertCircle, Clock,
   Users, TrendingUp, Activity, Plus, Eye, Settings, LogOut,
+<<<<<<< Updated upstream
   Shield, Star, ChevronRight, BarChart3, Loader2, RefreshCw
+=======
+  Shield, Star, ChevronRight, BarChart3, Loader2
+>>>>>>> Stashed changes
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/AuthContext";
+<<<<<<< Updated upstream
 import { api, getCurrentUserId, DonorDashboard as DonorDashboardType } from "@/lib/api";
 
 const MODULE_ROUTES: Record<string, string> = {
@@ -72,6 +77,53 @@ function DonorDashboard() {
   const isVerified = p?.is_verified ?? profile?.is_verified ?? false;
   const trustScore = stats?.trust_score != null ? String(stats.trust_score) : (profile?.trust_score ? (profile.trust_score / 10).toFixed(1) : "—");
   const donorTypes = p?.donor_types || profile?.donor_types || [];
+=======
+import { api, getCurrentUserId, BloodRequest } from "@/lib/api";
+import { toast } from "sonner";
+
+const matchHistory = [
+  { date: "Feb 15, 2025", type: "🩸 Blood (O+)", hospital: "Lilavati Hospital", status: "Fulfilled", impact: "3 lives saved" },
+  { date: "Jan 28, 2025", type: "⏱️ Platelets", hospital: "Kokilaben Hospital", status: "Fulfilled", impact: "1 patient helped" },
+  { date: "Jan 10, 2025", type: "🩸 Blood (O+)", hospital: "Breach Candy Hospital", status: "Fulfilled", impact: "2 lives saved" },
+];
+
+function DonorDashboard() {
+  const [available, setAvailable] = useState(true);
+  const [activeRequests, setActiveRequests] = useState<BloodRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { userName, profile } = useAuth();
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      const donorId = getCurrentUserId();
+      if (!donorId) return;
+      try {
+        const reqs = await api.blood.getRequestsForDonor(donorId);
+        setActiveRequests(reqs);
+      } catch (error) {
+        console.error("Failed to fetch donor requests", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRequests();
+  }, []);
+
+  const handleRespond = (req: BloodRequest) => {
+    toast.success(`Response sent to ${req.hospital}!`, {
+      description: `They will contact you shortly for the ${req.group} blood donation.`,
+      icon: <Heart className="w-4 h-4 text-blood" />
+    });
+  };
+
+  const name = profile?.name || userName || "Donor";
+  const initial = name.charAt(0).toUpperCase();
+  const bloodGroup = profile?.blood_group || "—";
+  const city = profile?.city || "—";
+  const isVerified = profile?.is_verified ?? false;
+  const trustScore = profile?.trust_score ? (profile.trust_score / 10).toFixed(1) : "—";
+  const donorTypes = profile?.donor_types || [];
+>>>>>>> Stashed changes
   const donorTypeSummary = [
     bloodGroup !== "—" ? `${bloodGroup} Blood` : null,
     donorTypes.includes("marrow") ? "Marrow Pledged" : null,
@@ -178,36 +230,52 @@ function DonorDashboard() {
             <AlertCircle className="w-5 h-5 text-primary" /> Urgent Requests Nearby
           </h3>
           <Badge className="bg-primary/10 text-primary border-0 font-body text-xs animate-pulse">
-            {urgentRequests.length} Active
+            {activeRequests.length} Active
           </Badge>
         </div>
-        <div className="space-y-3">
-          {urgentRequests.map((req, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className="rounded-xl border-2 border-border bg-card p-4 flex items-center gap-4 hover:border-primary/30 transition-all"
-            >
-              <div className="text-2xl">{req.type}</div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-body font-bold text-sm text-foreground">{req.group}</span>
-                  <Badge
-                    className={`text-xs border-0 font-body ${req.urgency === "CRITICAL"
-                      ? "bg-blood/15 text-blood"
-                      : req.urgency === "URGENT"
-                        ? "bg-platelet/15 text-platelet"
-                        : "bg-marrow/15 text-marrow"
-                      }`}
-                  >
-                    {req.urgency}
-                  </Badge>
+
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : activeRequests.length === 0 ? (
+          <div className="p-10 text-center border-2 border-dashed rounded-2xl bg-muted/20">
+            <Heart className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
+            <p className="text-muted-foreground font-body font-semibold">No urgent requests matching your blood group matching right now.</p>
+            <p className="text-muted-foreground font-body text-xs mt-1">We'll alert you if someone nearby needs your help.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activeRequests.map((req, i) => (
+              <motion.div
+                key={req.id || i}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="rounded-xl border-2 border-border bg-card p-4 flex items-center gap-4 hover:border-primary/30 transition-all shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-blood/10 flex items-center justify-center font-display font-bold text-blood shrink-0">
+                  {req.group}
                 </div>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {req.hospital} · <MapPin className="w-3 h-3 inline" /> {req.distance} · {req.time}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body font-bold text-sm text-foreground truncate">{req.hospital}</span>
+                    <Badge
+                      className={`text-[10px] border-0 font-body px-1.5 h-4 ${req.urgency === "CRITICAL"
+                        ? "bg-blood/15 text-blood"
+                        : req.urgency === "URGENT"
+                          ? "bg-platelet/15 text-platelet"
+                          : "bg-marrow/15 text-marrow"
+                        }`}
+                    >
+                      {req.urgency}
+                    </Badge>
+                  </div>
+                  <div className="font-body text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                    <MapPin className="w-3 h-3 shrink-0" /> {req.city} · <Clock className="w-3 h-3 shrink-0" /> {req.posted}
+                  </div>
                 </div>
+<<<<<<< Updated upstream
               </div>
               <Button
                 size="sm"
@@ -225,6 +293,17 @@ function DonorDashboard() {
           <div className="rounded-xl border-2 border-dashed border-border bg-card p-6 text-center">
             <CheckCircle2 className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
             <p className="font-body text-sm text-muted-foreground">No urgent requests right now. Check back later!</p>
+=======
+                <Button
+                  size="sm"
+                  onClick={() => handleRespond(req)}
+                  className="bg-primary text-primary-foreground font-body font-semibold rounded-lg shrink-0"
+                >
+                  Respond
+                </Button>
+              </motion.div>
+            ))}
+>>>>>>> Stashed changes
           </div>
         )}
       </div>

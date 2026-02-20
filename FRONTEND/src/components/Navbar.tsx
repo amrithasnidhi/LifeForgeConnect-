@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Heart, ChevronDown } from "lucide-react";
+import { Menu, X, Heart, ChevronDown, User, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/AuthContext";
 
 const modules = [
   { name: "BloodBridge", path: "/blood-bridge", emoji: "🩸", color: "text-blood" },
@@ -18,6 +20,8 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { role, userName, logout } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -25,13 +29,18 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
+
   const isHome = location.pathname === "/";
 
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || !isHome
-          ? "bg-card/95 backdrop-blur-md shadow-card border-b border-border"
-          : "bg-transparent"
+        ? "bg-card/95 backdrop-blur-md shadow-card border-b border-border"
+        : "bg-transparent"
         }`}
     >
       <div className="container mx-auto px-4">
@@ -65,8 +74,8 @@ export default function Navbar() {
                 onMouseEnter={() => setModulesOpen(true)}
                 onMouseLeave={() => setModulesOpen(false)}
                 className={`flex items-center gap-1 font-body text-sm font-medium transition-colors ${scrolled || !isHome
-                    ? "text-foreground hover:text-primary"
-                    : "text-primary-foreground/90 hover:text-primary-foreground"
+                  ? "text-foreground hover:text-primary"
+                  : "text-primary-foreground/90 hover:text-primary-foreground"
                   }`}
               >
                 Modules <ChevronDown className="w-4 h-4" />
@@ -102,8 +111,8 @@ export default function Navbar() {
             <Link
               to="/dashboard"
               className={`font-body text-sm font-medium transition-colors ${scrolled || !isHome
-                  ? "text-foreground hover:text-primary"
-                  : "text-primary-foreground/90 hover:text-primary-foreground"
+                ? "text-foreground hover:text-primary"
+                : "text-primary-foreground/90 hover:text-primary-foreground"
                 }`}
             >
               Dashboard
@@ -112,33 +121,52 @@ export default function Navbar() {
             <Link
               to="/ai-companion"
               className={`font-body text-sm font-bold flex items-center gap-1.5 transition-colors ${scrolled || !isHome
-                  ? "text-primary hover:opacity-80"
-                  : "text-primary-foreground hover:opacity-80"
+                ? "text-primary hover:opacity-80"
+                : "text-primary-foreground hover:opacity-80"
                 }`}
             >
               <span className="animate-pulse text-lg">✨</span> AI Companion
             </Link>
 
-            <Link to="/login">
-              <Button
-                variant="outline"
-                size="sm"
-                className={`font-body font-semibold border-2 ${scrolled || !isHome
-                    ? "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                    : "border-primary-foreground/60 text-primary-foreground hover:bg-primary-foreground/10"
-                  }`}
-              >
-                Login
-              </Button>
-            </Link>
-            <Link to="/register">
-              <Button
-                size="sm"
-                className="font-body font-semibold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-primary"
-              >
-                Donate / Register
-              </Button>
-            </Link>
+            {!role ? (
+              <>
+                <Link to="/login">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`font-body font-semibold border-2 ${scrolled || !isHome
+                      ? "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                      : "border-primary-foreground/60 text-primary-foreground hover:bg-primary-foreground/10"
+                      }`}
+                  >
+                    Login
+                  </Button>
+                </Link>
+                <Link to="/register">
+                  <Button
+                    size="sm"
+                    className="font-body font-semibold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-primary"
+                  >
+                    Donate / Register
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className={`flex items-center gap-2 font-body text-sm font-bold ${scrolled || !isHome ? "text-foreground" : "text-primary-foreground"}`}>
+                  <User className="w-4 h-4 text-primary" />
+                  {userName}
+                </div>
+                <Button
+                  onClick={handleLogout}
+                  variant="ghost"
+                  size="sm"
+                  className={`font-body font-bold text-xs gap-1.5 ${scrolled || !isHome ? "text-muted-foreground hover:text-red-500" : "text-primary-foreground/70 hover:text-primary-foreground"}`}
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Logout
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Mobile menu toggle */}
@@ -161,6 +189,16 @@ export default function Navbar() {
               className="md:hidden bg-card border-t border-border overflow-hidden"
             >
               <div className="py-4 space-y-1">
+                {role && (
+                  <div className="px-4 py-3 mb-2 bg-primary/5 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <User className="w-5 h-5 text-primary" />
+                      <span className="font-display font-bold text-sm">{userName}</span>
+                    </div>
+                    <Badge className="bg-primary/20 text-primary border-0">{role}</Badge>
+                  </div>
+                )}
+
                 {modules.map((m) => (
                   <Link
                     key={m.path}
@@ -182,16 +220,35 @@ export default function Navbar() {
                 </Link>
 
                 <div className="flex flex-col gap-2 px-4 pt-3 border-t border-border mx-2">
-                  <Link to="/login" onClick={() => setIsOpen(false)}>
-                    <Button variant="outline" className="w-full border-primary text-primary">
-                      Login
-                    </Button>
-                  </Link>
-                  <Link to="/register" onClick={() => setIsOpen(false)}>
-                    <Button className="w-full bg-gradient-primary text-primary-foreground">
-                      Donate / Register
-                    </Button>
-                  </Link>
+                  {!role ? (
+                    <>
+                      <Link to="/login" onClick={() => setIsOpen(false)}>
+                        <Button variant="outline" className="w-full border-primary text-primary">
+                          Login
+                        </Button>
+                      </Link>
+                      <Link to="/register" onClick={() => setIsOpen(false)}>
+                        <Button className="w-full bg-gradient-primary text-primary-foreground">
+                          Donate / Register
+                        </Button>
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link to="/dashboard" onClick={() => setIsOpen(false)}>
+                        <Button variant="outline" className="w-full border-primary text-primary gap-2">
+                          <LayoutDashboard className="w-4 h-4" /> My Dashboard
+                        </Button>
+                      </Link>
+                      <Button
+                        onClick={handleLogout}
+                        variant="ghost"
+                        className="w-full text-red-500 hover:bg-red-50 gap-2"
+                      >
+                        <LogOut className="w-4 h-4" /> Logout
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -201,3 +258,4 @@ export default function Navbar() {
     </nav>
   );
 }
+
