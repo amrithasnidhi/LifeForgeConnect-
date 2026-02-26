@@ -149,6 +149,7 @@ def get_open_blood_requests():
             "units":    r.get("units", 1),
             "urgency":  urgency,
             "timeLeft": f"{h}h {m:02d}m",
+            "hours_left": time_left_hours,
             "city":     hospital.get("city", ""),
             "posted":   f"{int(elapsed.total_seconds() / 60)} min ago"
                         if elapsed.total_seconds() < 3600
@@ -356,6 +357,7 @@ def get_requests_for_donor(
             "units":    r.get("units", 1),
             "urgency":  urgency,
             "timeLeft": f"{h}h {m:02d}m",
+            "hours_left": time_left_hours,
             "city":     hospital.get("city", ""),
             "posted":   f"{int(elapsed.total_seconds() / 60)} min ago"
                         if elapsed.total_seconds() < 3600

@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-<<<<<<< Updated upstream
-import { ArrowLeft, Upload, Dna, ChevronRight, Shield, CheckCircle2, Loader2, X } from "lucide-react";
-=======
 import { ArrowLeft, Upload, Dna, ChevronRight, Shield, CheckCircle2, Loader2, Search, X, Fingerprint, Activity } from "lucide-react";
->>>>>>> Stashed changes
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -52,32 +48,6 @@ export default function MarrowMatch() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploaded, setIsUploaded] = useState(false);
-<<<<<<< Updated upstream
-  const [contactSuccess, setContactSuccess] = useState<ContactSuccess | null>(null);
-
-  // Load initial donors on mount
-  useEffect(() => {
-    const loadDonors = async () => {
-      try {
-        const data = await api.marrow.getDonors();
-        if (Array.isArray(data)) {
-          const formatted = data.slice(0, 3).map((d: any) => ({
-            id: d.id.slice(0, 4).toUpperCase(),
-            donor_id: d.id,
-            matchPct: 0,
-            confidence: "Donor",
-            hlaA: d.hla_type?.[0] || "—",
-            hlaB: d.hla_type?.[1] || "—",
-            location: d.city || "Chennai",
-            age: 28,
-            donated: 0,
-            status: d.trust_score >= 70 ? "Willing" : "Considering",
-          }));
-          setMatches(formatted);
-        }
-      } catch (error) {
-        console.error("Failed to load donors", error);
-=======
   const [showRegModal, setShowRegModal] = useState(false);
 
   // Donor registration form
@@ -87,6 +57,8 @@ export default function MarrowMatch() {
     hlaC: "C*07:01",
     hlaDR: "DRB1*15:01"
   });
+
+  const [contactSuccess, setContactSuccess] = useState<ContactSuccess | null>(null);
 
   const loadDonors = async () => {
     try {
@@ -105,7 +77,6 @@ export default function MarrowMatch() {
           status: d.trust_score >= 70 ? "Willing" : "Considering"
         }));
         setMatches(formatted.slice(0, 5));
->>>>>>> Stashed changes
       }
     } catch (error) {
       console.error("Failed to load donors", error);
@@ -127,14 +98,10 @@ export default function MarrowMatch() {
     }
     setIsLoading(true);
     try {
-<<<<<<< Updated upstream
-      const result = await api.marrow.findMatches(DEFAULT_HLA, patientName || "P-101");
-=======
       // simulate network lag for the "Scanning" effect if report was uploaded
       if (isUploaded) await new Promise(r => setTimeout(r, 1500));
 
       const result = await api.marrow.findMatches(DEFAULT_HLA, patientName || "P-SEARCH");
->>>>>>> Stashed changes
       setMatches(result.matches);
       toast.success(`Analysis complete: Found ${result.total_found} HLA matches!`, {
         icon: <Activity className="text-marrow w-4 h-4" />
@@ -183,67 +150,45 @@ export default function MarrowMatch() {
     }
   };
 
-<<<<<<< Updated upstream
-  const handleContact = (match: MarrowMatchType) => {
-    setContactSuccess({
-      donor_name: `Donor #${match.id}`,
-      donor_city: match.location,
-      next_steps: [
-        "HLA confirmation test will be scheduled within 48 hours.",
-        "A counsellor will contact you to explain the process.",
-        "Health screening for the donor will be arranged.",
-        "You will be notified at each step via SMS and email.",
-      ],
-    });
-  };
-
-  const handleUpload = () => {
-    setIsUploaded(true);
-    toast.success("HLA Report uploaded and scanned successfully!");
-=======
-  const handleContact = (donorId: string) => {
+  const handleContact = (id: string) => {
     if (!isLoggedIn()) {
       toast.error("Please login to initiate contact with donors");
       return;
     }
+
+    const match = matches.find(m => m.id === id);
+    if (!match) return;
+
+    setContactSuccess({
+      donor_name: `Donor #${match.id}`,
+      donor_city: match.location,
+      next_steps: [
+        "Medical officer reviews sequencing rapport",
+        "Confirmation swab requested from donor",
+        "Logistics coordination for health screening"
+      ]
+    });
+
     toast.success(`Match Request Sent!`, {
-      description: `Donor #${donorId} has been notified. Coordination for confirmation testing will begin shortly.`,
+      description: `Donor #${id} has been notified. Coordination for confirmation testing will begin shortly.`,
       icon: <CheckCircle2 className="text-secondary w-4 h-4" />
     });
->>>>>>> Stashed changes
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <div className="pt-16">
-<<<<<<< Updated upstream
-        {/* Hero */}
-        <div className="bg-gradient-to-br from-marrow/90 to-teal-700/60 text-primary-foreground py-16 px-4">
-          <div className="container mx-auto">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground font-body text-sm mb-6"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-=======
         <div className="bg-gradient-to-br from-marrow/90 to-teal-800/60 text-primary-foreground py-16 px-4">
           <div className="container mx-auto">
             <Link to="/" className="inline-flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground font-body text-sm mb-6 transition-colors">
               <ArrowLeft className="w-4 h-4" /> Back to Bridge
->>>>>>> Stashed changes
             </Link>
             <div className="flex items-center gap-4 mb-4">
               <div className="text-6xl animate-pulse">🧬</div>
               <div>
                 <h1 className="font-display text-5xl font-black">MarrowMatch</h1>
-<<<<<<< Updated upstream
-                <p className="font-body text-primary-foreground/70 text-lg">
-                  HLA precision matching for bone marrow transplants
-                </p>
-=======
                 <p className="font-body text-primary-foreground/70 text-lg">94% precision matching for bone marrow registries</p>
->>>>>>> Stashed changes
               </div>
             </div>
             <div className="flex gap-6 mt-6 flex-wrap">
@@ -263,14 +208,6 @@ export default function MarrowMatch() {
 
         <div className="container mx-auto px-4 py-10">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-<<<<<<< Updated upstream
-
-            {/* Sidebar: Upload + Register */}
-            <div className="space-y-5">
-              <div className="rounded-2xl border-2 border-marrow/20 bg-card p-5 shadow-card">
-                <h3 className="font-display text-base font-bold mb-4 flex items-center gap-2">
-                  <Dna className="w-5 h-5 text-marrow" /> Upload HLA Report
-=======
             <div className="space-y-6">
               {/* Find Match Card */}
               <div className="rounded-3xl border-2 border-marrow/20 bg-card p-6 shadow-card overflow-hidden relative">
@@ -279,62 +216,18 @@ export default function MarrowMatch() {
                 </div>
                 <h3 className="font-display text-lg font-bold mb-4 flex items-center gap-2 relative z-10">
                   <Search className="w-5 h-5 text-marrow" /> Find Genetic Match
->>>>>>> Stashed changes
                 </h3>
                 <div className="space-y-4 relative z-10">
                   <div className="space-y-1.5">
-<<<<<<< Updated upstream
-                    <Label className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Patient ID / Name
-                    </Label>
-                    <Input
-                      placeholder="Patient name or ID"
-                      className="h-10 rounded-xl font-body"
-=======
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Internal Patient Ref</Label>
                     <Input
                       placeholder="e.g. PAT-9021"
                       className="h-11 rounded-xl font-body border-marrow/10"
->>>>>>> Stashed changes
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
                     />
                   </div>
 
-<<<<<<< Updated upstream
-                  {/* Upload zone */}
-                  <div
-                    onClick={handleUpload}
-                    className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer ${isUploaded
-                        ? "border-green-500 bg-green-500/5"
-                        : "border-marrow/30 hover:border-marrow/60"
-                      }`}
-                  >
-                    {isUploaded ? (
-                      <CheckCircle2 className="w-7 h-7 text-green-500 mx-auto mb-2" />
-                    ) : (
-                      <Upload className="w-7 h-7 text-marrow mx-auto mb-2" />
-                    )}
-                    <p className={`font-body text-sm ${isUploaded ? "text-green-600 font-bold" : "text-muted-foreground"}`}>
-                      {isUploaded ? "Report Verified" : "Upload HLA Typing Report"}
-                    </p>
-                    <p className="font-body text-xs text-muted-foreground mt-1">PDF, JPEG — max 10MB</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Urgency Level
-                    </Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {["High", "Critical", "Routine"].map((u) => (
-                        <button
-                          key={u}
-                          onClick={() => setUrgency(u)}
-                          className={`h-9 rounded-lg border-2 font-body text-xs font-semibold transition-all ${urgency === u
-                              ? "border-marrow bg-marrow/10 text-marrow"
-                              : "border-border hover:border-marrow hover:bg-marrow/10"
-                            }`}
-=======
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">HLA Report (Typing)</Label>
                     <div className="relative group">
@@ -377,7 +270,6 @@ export default function MarrowMatch() {
                           key={u}
                           onClick={() => setUrgency(u)}
                           className={`flex-1 py-2 rounded-lg font-body text-[10px] font-bold uppercase transition-all ${urgency === u ? "bg-white text-marrow shadow-sm" : "text-muted-foreground hover:bg-white/50"}`}
->>>>>>> Stashed changes
                         >
                           {u}
                         </button>
@@ -390,37 +282,11 @@ export default function MarrowMatch() {
                     disabled={isLoading || isUploading}
                     className="w-full bg-marrow text-white font-body font-bold rounded-xl h-12 shadow-lg shadow-marrow/20 hover:scale-[1.02] transition-transform mt-2"
                   >
-<<<<<<< Updated upstream
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      "Find Matches"
-                    )}
-=======
                     {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Initiate Match Search"}
->>>>>>> Stashed changes
                   </Button>
                 </div>
               </div>
 
-<<<<<<< Updated upstream
-              {/* Donor signup */}
-              <div className="rounded-2xl border-2 border-marrow/20 bg-marrow/5 p-5">
-                <h3 className="font-display text-base font-bold mb-2">Pledge Marrow Donation</h3>
-                <p className="font-body text-xs text-muted-foreground mb-3">
-                  18–55 years, healthy. Save a life with a simple HLA test.
-                </p>
-                <div className="space-y-2">
-                  {[
-                    "Age 18–55",
-                    "No serious health conditions",
-                    "Willing to travel if matched",
-                    "Complete health quiz",
-                  ].map((req) => (
-=======
               {/* Pledge Card */}
               <div className="rounded-3xl border-2 border-marrow/20 bg-marrow/5 p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-marrow/5 rounded-full -mr-16 -mt-16" />
@@ -428,7 +294,6 @@ export default function MarrowMatch() {
                 <p className="font-body text-xs text-muted-foreground mb-4 leading-relaxed">Most matches are found within the same ethnic group. Your registry could save a life today.</p>
                 <div className="space-y-2.5 mb-6">
                   {["Age 18–50", "Healthy History", "Willing to travel"].map(req => (
->>>>>>> Stashed changes
                     <div key={req} className="flex items-center gap-2">
                       <Shield className="w-4 h-4 text-marrow" />
                       <span className="font-body text-[11px] font-semibold text-foreground/70 tracking-tight">{req}</span>
@@ -436,38 +301,14 @@ export default function MarrowMatch() {
                   ))}
                 </div>
                 <Button
-<<<<<<< Updated upstream
-                  onClick={handleRegisterDonor}
-                  disabled={isRegistering}
-                  variant="outline"
-                  className="w-full mt-4 border-marrow text-marrow font-body font-semibold rounded-xl hover:bg-marrow hover:text-primary-foreground"
-=======
                   onClick={() => setShowRegModal(true)}
                   className="w-full bg-white text-marrow border-2 border-marrow font-body font-bold rounded-xl h-11 hover:bg-marrow hover:text-white transition-all shadow-sm"
->>>>>>> Stashed changes
                 >
                   Register HLA Profile
                 </Button>
               </div>
             </div>
 
-<<<<<<< Updated upstream
-            {/* Matches list */}
-            <div className="lg:col-span-2">
-              <h3 className="font-display text-xl font-bold mb-4">
-                {isLoading
-                  ? "Fetching best HLA matches..."
-                  : matches.length > 0 && matches[0].matchPct > 0
-                    ? "Top HLA Matches"
-                    : "Available Donors"}
-              </h3>
-              <div className="space-y-4">
-                {matches.length === 0 && !isLoading && (
-                  <div className="text-center py-20 bg-muted/20 rounded-2xl border-2 border-dashed">
-                    <p className="text-muted-foreground font-body">
-                      No matches found yet. Try searching with a report.
-                    </p>
-=======
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between px-1">
                 <h3 className="font-display text-xl font-bold flex items-center gap-2">
@@ -487,7 +328,6 @@ export default function MarrowMatch() {
                     <Dna className="w-12 h-12 text-muted mx-auto mb-3 opacity-30" />
                     <p className="text-muted-foreground font-body font-bold text-sm">No specific matches found in your area.</p>
                     <p className="text-muted-foreground font-body text-xs mt-1">Upload a typing report for precision search.</p>
->>>>>>> Stashed changes
                   </div>
                 )}
 
@@ -501,27 +341,6 @@ export default function MarrowMatch() {
                   >
                     <div className="flex flex-col md:flex-row items-center gap-6">
                       <MatchMeter pct={m.matchPct} />
-<<<<<<< Updated upstream
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-body font-bold text-foreground">Donor #{m.id}</span>
-                          <Badge
-                            className={`text-xs border-0 font-body ${m.matchPct >= 95
-                                ? "bg-secondary/15 text-secondary"
-                                : m.matchPct >= 85
-                                  ? "bg-marrow/15 text-marrow"
-                                  : "bg-muted text-muted-foreground"
-                              }`}
-                          >
-                            {m.confidence}
-                          </Badge>
-                          <Badge
-                            className={`text-xs border-0 font-body ${m.status === "Willing"
-                                ? "bg-secondary/15 text-secondary"
-                                : "bg-muted text-muted-foreground"
-                              }`}
-                          >
-=======
 
                       <div className="flex-1 text-center md:text-left">
                         <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap mb-4">
@@ -530,7 +349,6 @@ export default function MarrowMatch() {
                             {m.confidence}
                           </Badge>
                           <Badge variant="outline" className={`text-[10px] font-bold border-2 h-5 px-2 ${m.status === "Willing" ? "border-secondary/20 text-secondary" : "border-muted text-muted-foreground"}`}>
->>>>>>> Stashed changes
                             {m.status}
                           </Badge>
                         </div>
@@ -549,43 +367,15 @@ export default function MarrowMatch() {
                           ))}
                         </div>
                       </div>
-<<<<<<< Updated upstream
-                      <Button
-                        size="sm"
-                        onClick={() => handleContact(m)}
-                        className="bg-marrow text-primary-foreground font-body font-semibold rounded-xl"
-=======
 
                       <Button
                         onClick={() => handleContact(m.id)}
                         className={`w-full md:w-auto h-12 px-8 rounded-xl font-body font-black text-xs uppercase tracking-widest shadow-md transition-all group-hover:translate-x-1 ${m.matchPct >= 90 ? "bg-secondary text-white hover:bg-secondary/90" : "bg-marrow text-white hover:bg-marrow/90"}`}
->>>>>>> Stashed changes
                       >
                         Initiate Confirmation <ChevronRight className="w-4 h-4 ml-2" />
                       </Button>
                     </div>
 
-<<<<<<< Updated upstream
-                    {/* Journey steps */}
-                    <div className="mt-4 pt-4 border-t border-border">
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                        {["HLA Confirmation", "Counselling", "Health Check", "Harvest", "Transplant"].map(
-                          (step, j) => (
-                            <div key={step} className="flex items-center gap-1.5 shrink-0">
-                              <div
-                                className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${j === 0
-                                    ? "bg-marrow text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
-                                  }`}
-                              >
-                                {j + 1}
-                              </div>
-                              <span className="font-body text-xs text-muted-foreground">{step}</span>
-                              {j < 4 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
-                            </div>
-                          )
-                        )}
-=======
                     {/* Progress indicator */}
                     <div className="mt-6 pt-5 border-t border-border/50">
                       <div className="flex items-center justify-between overflow-x-auto gap-4 pb-2 scrollbar-none">
@@ -598,7 +388,6 @@ export default function MarrowMatch() {
                             {j < 4 && <ChevronRight className="w-3 h-3 text-muted-foreground/30" />}
                           </div>
                         ))}
->>>>>>> Stashed changes
                       </div>
                     </div>
                   </motion.div>
@@ -760,10 +549,6 @@ export default function MarrowMatch() {
       </AnimatePresence>
     </div>
   );
-<<<<<<< Updated upstream
-}
-=======
 }
 
 
->>>>>>> Stashed changes
