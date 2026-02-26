@@ -78,7 +78,7 @@ function DonorRegister() {
         email,
         password,
       });
-      login("donor", firstName || "Donor");
+      login("donor", firstName || "Donor", undefined, { donor_types: selected });
       navigate("/dashboard");
     } catch (e: any) {
       setError(e.message || "Registration failed");
