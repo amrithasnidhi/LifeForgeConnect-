@@ -508,7 +508,7 @@ export default function BloodBridge() {
                     <div className="rounded-2xl border-2 border-blood/20 bg-card shadow-card overflow-hidden">
                       <BloodBridgeMap
                         donors={donors.map(d => ({
-                          id: parseInt(d.id) || 0,
+                          id: d.id,
                           name: d.name,
                           blood_group: d.group,
                           city: d.city,

@@ -28,16 +28,16 @@ async function req<T>(
     // When BASE is empty, use relative path so Vite proxy handles it
     // When BASE is set, use absolute URL
     let url: URL | string;
-    
+
     if (BASE) {
         // Absolute URL - direct connection to backend
-        url = new URL(BASE + path);
+        const urlObj = new URL(BASE + path);
         if (params) {
             Object.entries(params).forEach(([k, v]) => {
-                if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+                if (v !== undefined && v !== null) urlObj.searchParams.set(k, String(v));
             });
         }
-        url = url.toString();
+        url = urlObj.toString();
     } else {
         // Relative path - will be handled by Vite proxy
         let relativePath = path;
@@ -96,6 +96,7 @@ export interface BloodDonor {
 export interface BloodRequest {
     id: string; hospital: string; group: string; units: number;
     urgency: string; timeLeft: string; city: string; posted: string;
+    hours_left?: number;
 }
 
 export interface BloodShortage {
