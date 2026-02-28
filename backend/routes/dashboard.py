@@ -9,13 +9,31 @@ Endpoints consumed by Dashboard.tsx (DonorDashboard, HospitalDashboard, AdminDas
   POST /dashboard/admin/verify    → approve/reject donor or hospital
 """
 
+import logging
+import time
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date
 
 from utils.db import supabase
 from utils.matching import days_since, days_until, blood_compatible
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_execute(query, retries=2, delay=0.3):
+    """Execute a Supabase query with retry on transient errors."""
+    for attempt in range(retries + 1):
+        try:
+            return query.execute()
+        except Exception as e:
+            if attempt < retries:
+                logger.warning(f"Supabase query retry {attempt+1}/{retries}: {e}")
+                time.sleep(delay)
+            else:
+                raise
 
 router = APIRouter()
 
@@ -283,15 +301,46 @@ def get_hospital_dashboard(hospital_id: str):
         .execute()
 
     # Build combined active_requests list matching HospitalDashboard.tsx
+    # Batch-fetch all matches and donors to avoid N+1 queries / socket exhaustion
+    all_requests = (blood_reqs.data or []) + (plat_reqs.data or [])
+    all_request_ids = [r["id"] for r in all_requests]
+
+    # Single query to get all pending matches for these requests
+    all_matches_data = []
+    if all_request_ids:
+        all_matches = _safe_execute(
+            supabase.table("matches")
+            .select("id, donor_id, status, request_id")
+            .in_("request_id", all_request_ids)
+            .eq("status", "pending")
+        )
+        all_matches_data = all_matches.data or []
+
+    # Group matches by request_id
+    matches_by_request = {}
+    for m in all_matches_data:
+        rid = m.get("request_id")
+        if rid not in matches_by_request:
+            matches_by_request[rid] = []
+        if m.get("donor_id"):
+            matches_by_request[rid].append(m["donor_id"])
+
+    # Single query to get all needed donors
+    all_donor_ids = list({did for dids in matches_by_request.values() for did in dids})
+    donors_by_id = {}
+    if all_donor_ids:
+        d_res = _safe_execute(
+            supabase.table("donors")
+            .select("id, name, mobile, city")
+            .in_("id", all_donor_ids)
+        )
+        for d in (d_res.data or []):
+            donors_by_id[d["id"]] = d
+
     active = []
     for r in (blood_reqs.data or []):
-        matched = supabase.table("matches").select("id, donor_id, status").eq("request_id", r["id"]).eq("status", "pending").execute()
-        donor_ids = [m["donor_id"] for m in (matched.data or []) if m.get("donor_id")]
-        donors = []
-        if donor_ids:
-            d_res = supabase.table("donors").select("id, name, mobile, city").in_("id", donor_ids).execute()
-            donors = d_res.data or []
-
+        donor_ids = matches_by_request.get(r["id"], [])
+        donors = [donors_by_id[did] for did in donor_ids if did in donors_by_id]
         active.append({
             "id":       r["id"],
             "group":    r["blood_group"],
@@ -303,13 +352,8 @@ def get_hospital_dashboard(hospital_id: str):
             "posted":   _time_ago(r.get("created_at", "")),
         })
     for r in (plat_reqs.data or []):
-        matched = supabase.table("matches").select("id, donor_id, status").eq("request_id", r["id"]).eq("status", "pending").execute()
-        donor_ids = [m["donor_id"] for m in (matched.data or []) if m.get("donor_id")]
-        donors = []
-        if donor_ids:
-            d_res = supabase.table("donors").select("id, name, mobile, city").in_("id", donor_ids).execute()
-            donors = d_res.data or []
-
+        donor_ids = matches_by_request.get(r["id"], [])
+        donors = [donors_by_id[did] for did in donor_ids if did in donors_by_id]
         active.append({
             "id":       r["id"],
             "group":    f"{r.get('blood_group','')} Platelets",

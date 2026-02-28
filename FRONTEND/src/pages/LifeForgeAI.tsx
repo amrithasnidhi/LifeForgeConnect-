@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Send, ArrowLeft, Heart, Loader2 } from "lucide-react";
+import { CheckCircle2, Send, ArrowLeft, Heart, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
+import { streamAIChat, AIChatMessage } from "@/lib/api";
 
 const SYSTEM_PROMPT = `You are LifeForge AI Companion, an intelligent assistant integrated into LifeForge Connect, a unified donor-recipient platform for blood, platelets, bone marrow, organs, plasma, and human milk.
 
@@ -27,12 +28,12 @@ Your tone should be: Calm, trustworthy, structured, and supportive. You help use
 const URGENCY_KEYWORDS = ["emergency", "urgent", "critical", "icu", "bleeding heavily", "dying", "immediate"];
 
 const QUICK_PROMPTS = [
-    { label: "🩸 Blood Donation", text: "How do I donate blood and what are the eligibility criteria?" },
-    { label: "🧬 Bone Marrow", text: "How does bone marrow donation work and how can I register?" },
-    { label: "🫀 Organ Donation", text: "How do I register as an organ donor in India?" },
-    { label: "🍼 Milk Donation", text: "How can I donate breast milk and what are the requirements?" },
-    { label: "🔬 Compatibility", text: "Can you explain blood group compatibility in simple terms?" },
-    { label: "⚡ Platelet Donation", text: "What is platelet donation and who needs it most?" },
+    { label: "🩸 Blood Donation", text: "What are the eligibility criteria for blood donation? Include precautions and recovery tips." },
+    { label: "🧬 Bone Marrow", text: "Explain how bone marrow donation works, HLA matching, and how to register as a donor in India." },
+    { label: "🫀 Organ Donation", text: "How do I register as an organ donor in India? Explain the legal process, organ viability windows, and THOTA act." },
+    { label: "🍼 Milk Donation", text: "How can a lactating mother donate breast milk? What is pasteurized donor human milk (PDHM) and how does milk banking work?" },
+    { label: "🔬 Compatibility", text: "Explain blood group compatibility, the universal donor and recipient, and how cross-matching works." },
+    { label: "⚡ Platelet Donation", text: "What is platelet apheresis donation? Who needs it most, what are the eligibility criteria, and how long does it take?" },
 ];
 
 function TypingIndicator() {
@@ -61,7 +62,27 @@ interface MessageProps {
         role: "user" | "assistant";
         content: string;
         isEmergency?: boolean;
+        isStreaming?: boolean;
     };
+}
+
+/** Simple Markdown-ish renderer for bold, bullets, and line breaks */
+function formatContent(text: string) {
+    return text.split("\n").map((line, i) => {
+        // Bold: **text**
+        const parts = line.split(/(\*\*[^*]+\*\*)/g).map((segment, j) => {
+            if (segment.startsWith("**") && segment.endsWith("**")) {
+                return <strong key={j} className="font-bold text-foreground">{segment.slice(2, -2)}</strong>;
+            }
+            return <span key={j}>{segment}</span>;
+        });
+        return (
+            <span key={i}>
+                {parts}
+                {i < text.split("\n").length - 1 && <br />}
+            </span>
+        );
+    });
 }
 
 function Message({ msg }: MessageProps) {
@@ -92,7 +113,10 @@ function Message({ msg }: MessageProps) {
                         <span className="text-sm">🚨</span> HIGH URGENCY DETECTED
                     </div>
                 )}
-                {msg.content}
+                {isUser ? msg.content : formatContent(msg.content)}
+                {msg.isStreaming && (
+                    <span className="inline-block w-1.5 h-4 bg-primary/70 ml-0.5 animate-pulse rounded-sm" />
+                )}
             </div>
         </motion.div>
     );
@@ -102,13 +126,14 @@ export default function LifeForgeAI() {
     const [messages, setMessages] = useState<MessageProps["msg"][]>([
         {
             role: "assistant",
-            content: "Hello, I'm LifeForge AI — your guide through India's life-saving donor ecosystem.\n\nI can help you with:\n• Blood, platelet, plasma & organ donation\n• Bone marrow & HLA compatibility\n• Human milk bank information\n• Donor eligibility & procedures\n\nHow can I assist you today? If this is a medical emergency, please call 108 immediately.",
-            isEmergency: false
+            content: "Hello! I'm **LifeForge AI** — your intelligent guide through India's life-saving donor ecosystem. 🏥\n\nI can help you with:\n• 🩸 Blood donation — eligibility, compatibility, precautions\n• ⚡ Platelet apheresis — who needs it, how it works\n• 🧬 Bone marrow matching — HLA types, registration\n• 🫀 Organ donation — pledging, legal process, viability\n• 🍼 Human milk banking — donors, storage, pasteurization\n• 🔴 Thalassemia care — transfusions, iron chelation\n• 💊 General health — first aid, nutrition, lab reports, myths vs facts\n\nHow can I assist you today? If this is a **medical emergency**, please call **108** immediately.",
+            isEmergency: false,
         }
     ]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const abortRef = useRef(false);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,45 +141,85 @@ export default function LifeForgeAI() {
 
     const isUrgent = (text: string) => URGENCY_KEYWORDS.some(k => text.toLowerCase().includes(k));
 
+    const clearChat = useCallback(() => {
+        setMessages([{
+            role: "assistant",
+            content: "Chat cleared! How can I help you? Ask me about blood donation, organ transplants, platelet needs, thalassemia, bone marrow, milk banking, or any health-related questions. 😊",
+            isEmergency: false,
+        }]);
+    }, []);
+
     const sendMessage = async (text?: string) => {
         const userText = text || input.trim();
         if (!userText || loading) return;
 
         const urgent = isUrgent(userText);
-        const processedText = urgent ? `High Urgency Context: The user may be in a medical emergency.\n\n${userText}` : userText;
 
-        const newMessages: MessageProps["msg"][] = [...messages, { role: "user", content: userText, isEmergency: false }];
-        setMessages(newMessages);
+        // Add user message
+        const userMsg: MessageProps["msg"] = { role: "user", content: userText, isEmergency: false };
+        setMessages(prev => [...prev, userMsg]);
         setInput("");
         setLoading(true);
+        abortRef.current = false;
 
-        // Note: In a real app, this would be an API call to your backend
-        // Since we don't have an Anthropic API key here, we simulate a response
-        try {
-            // Simulation delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+        // Build conversation history for API (last 20 messages for context)
+        const history: AIChatMessage[] = [...messages.slice(-20), userMsg].map(m => ({
+            role: m.role as "user" | "assistant",
+            content: m.role === "user" && urgent
+                ? `⚠️ HIGH URGENCY CONTEXT — the user may be in an emergency.\n\n${m.content}`
+                : m.content,
+        }));
 
-            let reply = "";
-            if (urgent) {
-                reply = "I've detected a high urgency situation. Please understand that I am an AI, not a medical professional. If you or someone else is in a critical condition (ICU, heavy bleeding, unconscious), please STOP using this app and call 108 (Emergency Services) immediately.\n\nOnce safety is ensured, I can help you understand the next steps for donation matching.";
-            } else {
-                reply = "I'm LifeForge AI! I am currently in demonstration mode. In a full production environment, I would connect to the LifeForge intelligent engine to provide specific details about " + userText.split(' ').slice(0, 3).join(' ') + " and more.\n\nHow else can I guide you through our life-saving system?";
+        // Add streaming placeholder
+        const streamingMsg: MessageProps["msg"] = {
+            role: "assistant",
+            content: "",
+            isEmergency: urgent,
+            isStreaming: true,
+        };
+        setMessages(prev => [...prev, streamingMsg]);
+
+        await streamAIChat(
+            history,
+            urgent,
+            // onChunk — append text to the last message
+            (chunk) => {
+                if (abortRef.current) return;
+                setMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    updated[updated.length - 1] = {
+                        ...last,
+                        content: last.content + chunk,
+                    };
+                    return updated;
+                });
+            },
+            // onDone — mark streaming complete
+            () => {
+                setMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    updated[updated.length - 1] = { ...last, isStreaming: false };
+                    return updated;
+                });
+                setLoading(false);
+            },
+            // onError — show error message
+            (errMsg) => {
+                setMessages(prev => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = {
+                        role: "assistant",
+                        content: `⚠️ ${errMsg}\n\nIf this is an emergency, please call **108** immediately. You can also try asking again.`,
+                        isEmergency: urgent,
+                        isStreaming: false,
+                    };
+                    return updated;
+                });
+                setLoading(false);
             }
-
-            setMessages(prev => [...prev, {
-                role: "assistant",
-                content: reply,
-                isEmergency: urgent
-            }]);
-        } catch {
-            setMessages(prev => [...prev, {
-                role: "assistant",
-                content: "I'm having trouble connecting right now. If this is an emergency, please call 108 immediately.",
-                isEmergency: urgent
-            }]);
-        } finally {
-            setLoading(false);
-        }
+        );
     };
 
     return (
@@ -177,9 +242,21 @@ export default function LifeForgeAI() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-1.5">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">AI Assistant Online</span>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={clearChat}
+                            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted rounded-full px-3 py-1.5 transition-all"
+                            title="New conversation"
+                        >
+                            <RotateCcw size={12} />
+                            New Chat
+                        </button>
+                        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-1.5">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                <Sparkles size={12} className="inline mr-1" />AI Powered
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -220,7 +297,7 @@ export default function LifeForgeAI() {
                     {messages.map((msg, i) => (
                         <Message key={i} msg={msg} />
                     ))}
-                    {loading && (
+                    {loading && messages[messages.length - 1]?.content === "" && (
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shrink-0">
                                 <Heart size={18} fill="currentColor" />
@@ -270,7 +347,7 @@ export default function LifeForgeAI() {
                     </div>
                     <div className="mt-3 flex justify-between items-center px-2">
                         <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
-                            <CheckCircle2 size={10} className="text-primary" /> India-wide donor intelligence
+                            <CheckCircle2 size={10} className="text-primary" /> Powered by Groq AI • India-wide donor intelligence
                         </span>
                         <span className="text-[10px] text-muted-foreground/60">
                             Shift + Enter for new line

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import Footer from "@/components/Footer";
 import LiveCounter from "@/components/LiveCounter";
 import ModuleCard from "@/components/ModuleCard";
 import heroBg from "@/assets/hero-bg.jpg";
+import { useAuth } from "@/hooks/AuthContext";
+import { toast } from "sonner";
 
 const modules = [
   {
@@ -107,6 +109,23 @@ const partners = [
 ];
 
 export default function Index() {
+  const { role } = useAuth();
+  const navigate = useNavigate();
+
+  const handleFindDonors = () => {
+    if (!role) {
+      toast.error("Please log in to continue", {
+        description: "You need to be logged in to find donors.",
+        action: {
+          label: "Login",
+          onClick: () => navigate("/login"),
+        },
+      });
+      return;
+    }
+    navigate("/blood-bridge");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -171,14 +190,14 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="flex flex-col sm:flex-row gap-4"
             >
-              <Link to="/blood-bridge">
-                <Button
-                  size="lg"
-                  className="font-body font-bold text-base px-8 py-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary-lg rounded-xl"
-                >
-                  Find Donors Now <ArrowRight className="w-5 h-5 ml-1" />
-                </Button>
-              </Link>
+              {/* Find Donors Now — requires login */}
+              <Button
+                size="lg"
+                onClick={handleFindDonors}
+                className="font-body font-bold text-base px-8 py-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary-lg rounded-xl"
+              >
+                Find Donors Now <ArrowRight className="w-5 h-5 ml-1" />
+              </Button>
               <Link to="/register">
                 <Button
                   size="lg"

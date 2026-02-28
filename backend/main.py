@@ -1,8 +1,6 @@
 """
 LifeForge Connect — FastAPI Backend
 ------------------------------------
-Architecture: FastAPI → Supabase (PostgreSQL via supabase-py)
-
 Run locally:
     uvicorn main:app --reload --port 8001
 """
@@ -10,7 +8,7 @@ Run locally:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import auth, blood, thal, platelet, marrow, organ, milk, dashboard
+from routes import auth, blood, thal, platelet, marrow, organ, milk, dashboard, notifications, ai_chat
 
 app = FastAPI(
     title="LifeForge Connect API",
@@ -19,25 +17,25 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# Regex allows any localhost port in dev + Vercel/Netlify previews in prod.
-# For production, replace the localhost regex with your exact deployed domain.
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://localhost:\d+|http://127\.0\.0\.1:\d+|https://.*\.(vercel|netlify)\.app",
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],     
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth.router,       prefix="/auth",      tags=["Auth"])
-app.include_router(blood.router,      prefix="/blood",     tags=["BloodBridge"])
-app.include_router(thal.router,       prefix="/thal",      tags=["ThalCare"])
-app.include_router(platelet.router,   prefix="/platelet",  tags=["PlateletAlert"])
-app.include_router(marrow.router,     prefix="/marrow",    tags=["MarrowMatch"])
-app.include_router(organ.router,      prefix="/organ",     tags=["LastGift"])
-app.include_router(milk.router,       prefix="/milk",      tags=["MilkBridge"])
-app.include_router(dashboard.router,  prefix="/dashboard", tags=["Dashboard"])
+app.include_router(auth.router,          prefix="/auth",          tags=["Auth"])
+app.include_router(blood.router,         prefix="/blood",         tags=["BloodBridge"])
+app.include_router(thal.router,          prefix="/thal",          tags=["ThalCare"])
+app.include_router(platelet.router,      prefix="/platelet",      tags=["PlateletAlert"])
+app.include_router(marrow.router,        prefix="/marrow",        tags=["MarrowMatch"])
+app.include_router(organ.router,         prefix="/organ",         tags=["LastGift"])
+app.include_router(milk.router,          prefix="/milk",          tags=["MilkBridge"])
+app.include_router(dashboard.router,     prefix="/dashboard",     tags=["Dashboard"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(ai_chat.router,       prefix="/ai",            tags=["AI Companion"])
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────
@@ -48,22 +46,12 @@ def root():
 
 @app.get("/stats", tags=["Health"])
 def platform_stats():
-    """
-    Live platform stats used by Index.tsx LiveCounter widgets.
-    """
+    """Live platform stats used by Index.tsx LiveCounter widgets."""
     from utils.db import supabase
 
-    donors = supabase.table("donors").select("id", count="exact").eq(
-        "is_available", True
-    ).execute()
-
-    hospitals = supabase.table("hospitals").select(
-        "id", count="exact"
-    ).execute()
-
-    matches = supabase.table("matches").select(
-        "id", count="exact"
-    ).execute()
+    donors    = supabase.table("donors").select("id", count="exact").eq("is_available", True).execute()
+    hospitals = supabase.table("hospitals").select("id", count="exact").execute()
+    matches   = supabase.table("matches").select("id", count="exact").execute()
 
     total_matches = matches.count or 0
 

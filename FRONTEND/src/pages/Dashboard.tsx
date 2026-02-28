@@ -2,13 +2,12 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Heart, Bell, MapPin, CheckCircle2, AlertCircle, Clock,
-  Users, TrendingUp, Activity, Plus, Eye, Settings, LogOut,
-  Shield, Star, ChevronRight, BarChart3, Loader2
+  Heart, MapPin, CheckCircle2, AlertCircle, Clock,
+  Users, Activity, Plus, Eye, Settings, LogOut,
+  Shield, Star, ChevronRight, BarChart3, Loader2, ArrowRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/AuthContext";
@@ -93,11 +92,9 @@ function DonorDashboard() {
             <span className="font-body text-sm font-medium text-primary-foreground/80">Available</span>
             <button
               onClick={() => setAvailable(!available)}
-              className={`w-12 h-6 rounded-full transition-all duration-300 relative ${available ? "bg-accent" : "bg-primary-foreground/30"
-                }`}
+              className={`w-12 h-6 rounded-full transition-all duration-300 relative ${available ? "bg-accent" : "bg-primary-foreground/30"}`}
             >
-              <div className={`absolute top-1 w-4 h-4 rounded-full bg-primary-foreground transition-all duration-300 ${available ? "right-1" : "left-1"
-                }`} />
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-primary-foreground transition-all duration-300 ${available ? "right-1" : "left-1"}`} />
             </button>
           </div>
         </div>
@@ -137,7 +134,7 @@ function DonorDashboard() {
         ) : activeRequests.length === 0 ? (
           <div className="p-10 text-center border-2 border-dashed rounded-2xl bg-muted/20">
             <Heart className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
-            <p className="text-muted-foreground font-body font-semibold">No urgent requests matching your blood group matching right now.</p>
+            <p className="text-muted-foreground font-body font-semibold">No urgent requests matching your blood group right now.</p>
             <p className="text-muted-foreground font-body text-xs mt-1">We'll alert you if someone nearby needs your help.</p>
           </div>
         ) : (
@@ -233,19 +230,58 @@ function OrgDashboardRouter() {
   }
 }
 
+const HOSPITAL_MODULES = [
+  {
+    name: "BloodBridge", emoji: "🩸", tagline: "Blood donor matching",
+    description: "Post urgent blood requests and match with verified donors in real time.",
+    path: "/blood-bridge", accent: "border-blood/30 hover:border-blood",
+    badge: "text-blood bg-blood/10", icon_bg: "bg-blood/10",
+  },
+  {
+    name: "ThalCare", emoji: "💉", tagline: "Thalassemia transfusions",
+    description: "Manage recurring transfusion schedules and donor assignments for Thal patients.",
+    path: "/thal-care", accent: "border-thal/30 hover:border-thal",
+    badge: "text-thal bg-thal/10", icon_bg: "bg-thal/10",
+  },
+  {
+    name: "PlateletAlert", emoji: "⏱️", tagline: "Platelet expiry tracking",
+    description: "Track platelet viability windows and match cancer patients with apheresis donors.",
+    path: "/platelet-alert", accent: "border-platelet/30 hover:border-platelet",
+    badge: "text-platelet bg-platelet/10", icon_bg: "bg-platelet/10",
+  },
+  {
+    name: "MarrowMatch", emoji: "🧬", tagline: "HLA bone marrow matching",
+    description: "Find HLA-compatible bone marrow donors with precision scoring.",
+    path: "/marrow-match", accent: "border-marrow/30 hover:border-marrow",
+    badge: "text-marrow bg-marrow/10", icon_bg: "bg-marrow/10",
+  },
+  {
+    name: "LastGift", emoji: "🫁", tagline: "Organ donation & matching",
+    description: "Manage organ recipient waitlists with viability timers and ranked matching.",
+    path: "/last-gift", accent: "border-organ/30 hover:border-organ",
+    badge: "text-organ bg-organ/10", icon_bg: "bg-organ/10",
+  },
+  {
+    name: "MilkBridge", emoji: "🍼", tagline: "Human milk bank",
+    description: "Connect with lactating donors and manage milk bank inventory for NICUs.",
+    path: "/milk-bridge", accent: "border-milk/30 hover:border-milk",
+    badge: "text-milk bg-milk/10", icon_bg: "bg-milk/10",
+  },
+];
+
 function HospitalDashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [thalPatients, setThalPatients] = useState<any[]>([]);
+  const [plateletRequests, setPlateletRequests] = useState<any[]>([]);
+  const [organRecipients, setOrganRecipients] = useState<any[]>([]);
+  const [remindersLoading, setRemindersLoading] = useState(true);
   const hospitalId = getCurrentUserId();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!hospitalId) {
-      setLoading(false);
-      return;
-    }
+    if (!hospitalId) { setLoading(false); return; }
     setLoading(true);
     api.dashboard.getHospital(hospitalId)
       .then(setData)
@@ -253,40 +289,65 @@ function HospitalDashboard() {
       .finally(() => setLoading(false));
   }, [hospitalId]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    const fetchReminders = async () => {
+      setRemindersLoading(true);
+      try {
+        const [thal, platelet, organ] = await Promise.allSettled([
+          api.thal.getPatients(hospitalId || undefined),
+          api.platelet.getOpenRequests(),
+          api.organ.getRecipients(),
+        ]);
+        if (thal.status === "fulfilled")
+          setThalPatients(thal.value.filter((p: any) => p.days_until !== null && p.days_until <= 7));
+        if (platelet.status === "fulfilled")
+          setPlateletRequests(platelet.value.filter((p: any) => p.days_left <= 2));
+        if (organ.status === "fulfilled")
+          setOrganRecipients(organ.value.slice(0, 3));
+      } finally {
+        setRemindersLoading(false);
+      }
+    };
+    fetchReminders();
+  }, [hospitalId]);
 
-  if (error) {
-    return (
-      <div className="rounded-xl border-2 border-dashed border-border bg-card p-8 text-center">
-        <p className="font-body text-muted-foreground mb-4">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-10 h-10 animate-spin text-primary" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="rounded-xl border-2 border-dashed border-border bg-card p-8 text-center">
+      <p className="font-body text-muted-foreground mb-4">{error}</p>
+      <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+    </div>
+  );
 
   const h = data?.hospital;
   const stats = data?.stats;
-  const activeRequests = data?.active_requests ?? [];
+  const totalUrgentReminders = thalPatients.length + plateletRequests.length + organRecipients.length;
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl bg-gradient-hero p-6 text-primary-foreground">
-        <h2 className="font-display text-2xl font-bold mb-2">🏥 {h?.name || "Hospital Dashboard"}</h2>
-        <p className="font-body text-primary-foreground/70 text-sm mb-4">
-          {h?.is_verified ? "Verified Hospital" : "Verification Pending"} · {h?.city}
-        </p>
-        <Button
-          onClick={() => navigate("/blood-bridge")}
-          className="bg-primary-foreground text-primary font-body font-bold rounded-xl"
-        >
-          <Plus className="w-4 h-4 mr-2" /> Post Urgent Blood Request
-        </Button>
+    <div className="space-y-8">
+      <div className="rounded-2xl bg-gradient-hero p-6 text-primary-foreground relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-accent/10 blur-3xl" />
+        <div className="relative flex flex-col md:flex-row md:items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary-foreground/20 flex items-center justify-center text-3xl shrink-0">🏥</div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-display text-2xl font-bold">{h?.name || "Hospital Dashboard"}</h2>
+              {h?.is_verified
+                ? <Badge className="bg-accent/20 text-accent border-0 font-body text-xs"><Shield className="w-3 h-3 mr-1" />Verified</Badge>
+                : <Badge className="bg-muted/40 text-primary-foreground/60 border-0 font-body text-xs">Verification Pending</Badge>
+              }
+            </div>
+            <p className="font-body text-primary-foreground/70 text-sm mt-0.5">{h?.city}</p>
+          </div>
+          <Button onClick={() => navigate("/blood-bridge")} className="bg-primary-foreground text-primary font-body font-bold rounded-xl shrink-0">
+            <Plus className="w-4 h-4 mr-2" /> Post Blood Request
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -305,80 +366,117 @@ function HospitalDashboard() {
       </div>
 
       <div>
-        <h3 className="font-display text-lg font-bold mb-4">Active Blood Requests</h3>
-        <div className="space-y-3">
-          {activeRequests.length === 0 ? (
-            <div className="p-10 text-center border-2 border-dashed border-border rounded-2xl">
-              <p className="font-body text-muted-foreground">No active requests found.</p>
-            </div>
-          ) : (
-            activeRequests.map((req: any, i: number) => (
-              <div key={req.id || i} className="rounded-xl border-2 border-border bg-card p-4 flex items-center gap-4">
-                <div className="text-2xl">{req.module === "BloodBridge" ? "🩸" : "⏱️"}</div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-body font-bold text-sm">{req.group}</span>
-                    <span className="font-body text-xs text-muted-foreground">· {req.units} unit(s)</span>
-                    <Badge className={`text-xs border-0 font-body ${req.urgency === "CRITICAL" ? "bg-blood/15 text-blood" : "bg-platelet/15 text-platelet"}`}>
-                      {req.urgency}
-                    </Badge>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-lg font-bold text-foreground">Platform Modules</h3>
+          <span className="font-body text-xs text-muted-foreground">Click to open module</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {HOSPITAL_MODULES.map((mod, i) => (
+            <motion.div key={mod.name} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+              <Link to={mod.path}>
+                <div className={`group rounded-xl border-2 bg-card p-5 cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${mod.accent}`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-11 h-11 rounded-xl ${mod.icon_bg} flex items-center justify-center text-2xl`}>{mod.emoji}</div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors mt-1" />
                   </div>
-                  <div className="font-body text-xs text-muted-foreground mt-0.5">
-                    {req.matched} donors matched · Posted {req.posted}
-                  </div>
+                  <div className="font-display font-bold text-base text-foreground mb-0.5">{mod.name}</div>
+                  <div className={`font-body text-xs font-semibold mb-2 ${mod.badge.split(" ")[0]}`}>{mod.tagline}</div>
+                  <p className="font-body text-xs text-muted-foreground leading-relaxed">{mod.description}</p>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="border-border font-body text-xs rounded-lg" onClick={() => setSelectedRequest(req)}>
-                    <Eye className="w-3 h-3 mr-1" /> View
-                  </Button>
-                  <Button size="sm" className="bg-gradient-primary text-primary-foreground font-body text-xs rounded-lg" onClick={() => setSelectedRequest(req)}>
-                    Contact ({req.matched})
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
+              </Link>
+            </motion.div>
+          ))}
         </div>
       </div>
 
-      <Dialog open={!!selectedRequest} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-        <DialogContent className="sm:max-w-md bg-card border-border shadow-primary-lg">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl text-foreground flex items-center gap-2">
-              <Users className="w-5 h-5 text-primary" /> Matched Donors
-            </DialogTitle>
-            <DialogDescription className="font-body text-sm text-muted-foreground">
-              {selectedRequest?.group} · {selectedRequest?.units} unit(s)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 mt-4">
-            {selectedRequest?.donors?.length === 0 ? (
-              <div className="text-center p-6 border-2 border-dashed border-border rounded-xl">
-                <p className="font-body text-muted-foreground">No donors have matched yet. We will notify you when someone responds.</p>
-              </div>
-            ) : (
-              selectedRequest?.donors?.map((d: any) => (
-                <div key={d.id} className="p-4 border-2 border-border rounded-xl bg-background flex flex-col gap-2">
-                  <div className="flex justify-between items-start">
-                    <span className="font-display font-bold text-lg text-foreground">{d.name}</span>
-                    <Badge className="bg-primary/10 text-primary border-0 font-body text-xs">Matched</Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm font-body text-muted-foreground mt-1">
-                    <MapPin className="w-4 h-4 shrink-0" /> {d.city || "—"}
-                  </div>
-                  <div className="mt-2 text-sm font-body text-foreground font-medium bg-muted p-2 rounded-lg flex justify-between items-center">
-                    <span>📞 {d.mobile}</span>
-                    <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 h-7 text-xs" onClick={(e) => {
-                      e.stopPropagation();
-                      window.location.href = `tel:${d.mobile}`;
-                    }}>Call Now</Button>
-                  </div>
-                </div>
-              ))
-            )}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-primary" /> Urgent Reminders
+          </h3>
+          {totalUrgentReminders > 0 && (
+            <Badge className="bg-primary/10 text-primary border-0 font-body text-xs animate-pulse">
+              {totalUrgentReminders} Alerts
+            </Badge>
+          )}
+        </div>
+
+        {remindersLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : totalUrgentReminders === 0 ? (
+          <div className="p-8 text-center border-2 border-dashed rounded-2xl bg-muted/20">
+            <CheckCircle2 className="w-10 h-10 text-secondary mx-auto mb-3 opacity-40" />
+            <p className="text-muted-foreground font-body font-semibold">No urgent reminders right now.</p>
+            <p className="text-muted-foreground font-body text-xs mt-1">All patients and platelet requests are within safe windows.</p>
           </div>
-        </DialogContent>
-      </Dialog>
+        ) : (
+          <div className="space-y-3">
+            {thalPatients.map((p: any, i: number) => (
+              <motion.div key={p.id || i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                className={`rounded-xl border-2 bg-card p-4 flex items-center gap-4 ${p.is_urgent ? "border-blood/40 bg-blood/3" : "border-thal/30"}`}>
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${p.is_urgent ? "bg-blood/10" : "bg-thal/10"}`}>💉</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body font-bold text-sm text-foreground">{p.name}</span>
+                    <Badge className={`text-[10px] border-0 font-body px-1.5 ${p.is_urgent ? "bg-blood/15 text-blood" : "bg-thal/15 text-thal"}`}>
+                      {p.is_urgent ? "OVERDUE / CRITICAL" : "DUE SOON"}
+                    </Badge>
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">
+                    💉 ThalCare · {p.group} · Next transfusion: <strong>{p.nextDate}</strong> · {p.countdown}
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">Assigned donor: {p.donor} · {p.freq}</div>
+                </div>
+                <Link to="/thal-care">
+                  <Button size="sm" className="bg-thal/10 text-thal hover:bg-thal hover:text-white font-body font-semibold rounded-lg border border-thal/30 shrink-0">Manage</Button>
+                </Link>
+              </motion.div>
+            ))}
+
+            {plateletRequests.map((p: any, i: number) => (
+              <motion.div key={p.id || i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: (thalPatients.length + i) * 0.05 }}
+                className={`rounded-xl border-2 bg-card p-4 flex items-center gap-4 ${p.is_critical ? "border-blood/40 bg-blood/3" : "border-platelet/30"}`}>
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${p.is_critical ? "bg-blood/10" : "bg-platelet/10"}`}>⏱️</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body font-bold text-sm text-foreground">{p.patient}</span>
+                    <Badge className={`text-[10px] border-0 font-body px-1.5 ${p.is_critical ? "bg-blood/15 text-blood" : "bg-platelet/15 text-platelet"}`}>
+                      {p.is_critical ? "EXPIRES TODAY/TOMORROW" : "EXPIRING SOON"}
+                    </Badge>
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">
+                    ⏱️ PlateletAlert · {p.group} · {p.cancer !== "—" ? p.cancer : "Cancer patient"} · Expires in: <strong className="text-blood">{p.expiry}</strong>
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">{p.hospital} · {p.units} unit(s) needed</div>
+                </div>
+                <Link to="/platelet-alert">
+                  <Button size="sm" className="bg-platelet/10 text-platelet hover:bg-platelet hover:text-white font-body font-semibold rounded-lg border border-platelet/30 shrink-0">Act Now</Button>
+                </Link>
+              </motion.div>
+            ))}
+
+            {organRecipients.map((r: any, i: number) => (
+              <motion.div key={r.id || i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: (thalPatients.length + plateletRequests.length + i) * 0.05 }}
+                className="rounded-xl border-2 border-organ/30 bg-card p-4 flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-organ/10 flex items-center justify-center text-xl shrink-0">🫁</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-body font-bold text-sm text-foreground">{r.name}</span>
+                    <Badge className="text-[10px] border-0 font-body px-1.5 bg-organ/15 text-organ">WAITING · Urgency {r.urgency}/10</Badge>
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">
+                    🫁 LastGift · Needs: <strong>{r.organ}</strong> · Blood: {r.blood} · Waiting: {r.wait}
+                  </div>
+                  <div className="font-body text-xs text-muted-foreground mt-0.5">{r.hospital}{r.hospital_city ? `, ${r.hospital_city}` : ""}</div>
+                </div>
+                <Link to="/last-gift">
+                  <Button size="sm" className="bg-organ/10 text-organ hover:bg-organ hover:text-white font-body font-semibold rounded-lg border border-organ/30 shrink-0">View</Button>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -398,7 +496,6 @@ function BloodBankDashboard() {
           </Button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: "🩸", label: "Units in Stock", value: "342", color: "text-blood" },
@@ -413,7 +510,6 @@ function BloodBankDashboard() {
           </div>
         ))}
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Blood Inventory by Group</h3>
         <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
@@ -423,17 +519,14 @@ function BloodBankDashboard() {
             { group: "AB+", units: 31, status: "ok" }, { group: "AB-", units: 5, status: "critical" },
             { group: "O+", units: 96, status: "ok" }, { group: "O-", units: 3, status: "critical" },
           ].map(({ group, units, status }) => (
-            <div key={group} className={`rounded-xl border-2 p-3 text-center ${status === "critical" ? "border-blood bg-blood/5" : status === "low" ? "border-platelet bg-platelet/5" : "border-border bg-card"
-              }`}>
+            <div key={group} className={`rounded-xl border-2 p-3 text-center ${status === "critical" ? "border-blood bg-blood/5" : status === "low" ? "border-platelet bg-platelet/5" : "border-border bg-card"}`}>
               <div className="font-display text-lg font-bold">{group}</div>
-              <div className={`font-display text-xl font-bold ${status === "critical" ? "text-blood" : status === "low" ? "text-platelet" : "text-foreground"
-                }`}>{units}</div>
+              <div className={`font-display text-xl font-bold ${status === "critical" ? "text-blood" : status === "low" ? "text-platelet" : "text-foreground"}`}>{units}</div>
               <div className="font-body text-xs text-muted-foreground">units</div>
             </div>
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Recent Dispatch Requests</h3>
         <div className="space-y-3">
@@ -446,9 +539,7 @@ function BloodBankDashboard() {
               <div className="text-2xl">🏥</div>
               <div className="flex-1">
                 <span className="font-body font-bold text-sm">{req.hospital}</span>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {req.group} · {req.units} unit(s) · {req.time}
-                </div>
+                <div className="font-body text-xs text-muted-foreground mt-0.5">{req.group} · {req.units} unit(s) · {req.time}</div>
               </div>
               <Badge className={`text-xs border-0 font-body ${req.status === "Dispatched" ? "bg-secondary/15 text-secondary" : "bg-platelet/15 text-platelet"}`}>
                 {req.status}
@@ -476,7 +567,6 @@ function OrphanageDashboard() {
           </Button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: "👶", label: "Children Under Care", value: "34", color: "text-platelet" },
@@ -491,7 +581,6 @@ function OrphanageDashboard() {
           </div>
         ))}
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Pending Requests</h3>
         <div className="space-y-3">
@@ -504,12 +593,9 @@ function OrphanageDashboard() {
               <div className="text-2xl">{req.type}</div>
               <div className="flex-1">
                 <span className="font-body font-bold text-sm">{req.need}</span>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {req.qty} · Posted {req.posted}
-                </div>
+                <div className="font-body text-xs text-muted-foreground mt-0.5">{req.qty} · Posted {req.posted}</div>
               </div>
-              <Badge className={`text-xs border-0 font-body ${req.urgency === "URGENT" ? "bg-blood/15 text-blood" : req.urgency === "SCHEDULED" ? "bg-muted text-muted-foreground" : "bg-secondary/15 text-secondary"
-                }`}>
+              <Badge className={`text-xs border-0 font-body ${req.urgency === "URGENT" ? "bg-blood/15 text-blood" : req.urgency === "SCHEDULED" ? "bg-muted text-muted-foreground" : "bg-secondary/15 text-secondary"}`}>
                 {req.urgency}
               </Badge>
             </div>
@@ -535,7 +621,6 @@ function NgoDashboard() {
           </Button>
         </div>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: "🎯", label: "Drives This Month", value: "6", color: "text-secondary" },
@@ -550,7 +635,6 @@ function NgoDashboard() {
           </div>
         ))}
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Upcoming Drives</h3>
         <div className="space-y-3">
@@ -563,9 +647,7 @@ function NgoDashboard() {
               <div className="text-2xl">📅</div>
               <div className="flex-1">
                 <span className="font-body font-bold text-sm">{drive.name}</span>
-                <div className="font-body text-xs text-muted-foreground mt-0.5">
-                  {drive.date} · {drive.registered}/{drive.target} registered
-                </div>
+                <div className="font-body text-xs text-muted-foreground mt-0.5">{drive.date} · {drive.registered}/{drive.target} registered</div>
               </div>
               <Badge className={`text-xs border-0 font-body ${drive.status === "OPEN" ? "bg-secondary/15 text-secondary" : "bg-muted text-muted-foreground"}`}>
                 {drive.status}
@@ -574,7 +656,6 @@ function NgoDashboard() {
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="font-display text-lg font-bold mb-4">Recent Impact</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -615,8 +696,6 @@ function AdminDashboard() {
           </div>
         ))}
       </div>
-
-      {/* Verification queue */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display text-lg font-bold flex items-center gap-2">
@@ -639,12 +718,8 @@ function AdminDashboard() {
                 <div className="font-body text-xs text-muted-foreground">{item.type} · {item.city} · {item.docs} · {item.time}</div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="border-secondary text-secondary rounded-lg font-body text-xs">
-                  ✓ Approve
-                </Button>
-                <Button size="sm" variant="outline" className="border-blood text-blood rounded-lg font-body text-xs">
-                  ✗ Reject
-                </Button>
+                <Button size="sm" variant="outline" className="border-secondary text-secondary rounded-lg font-body text-xs">✓ Approve</Button>
+                <Button size="sm" variant="outline" className="border-blood text-blood rounded-lg font-body text-xs">✗ Reject</Button>
               </div>
             </div>
           ))}
@@ -655,10 +730,9 @@ function AdminDashboard() {
 }
 
 export default function Dashboard() {
-  const { role, userName, logout } = useAuth();
+  const { role, userName } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to login if no role is set
   if (!role) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -675,11 +749,6 @@ export default function Dashboard() {
     );
   }
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
   const roleLabels: Record<string, string> = {
     donor: "🩸 Donor",
     hospital: "🏥 Hospital",
@@ -690,41 +759,21 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-16">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8 flex-wrap gap-4"
+          className="mb-8"
         >
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Heart className="w-5 h-5 text-primary fill-current" />
-              <span className="font-body text-sm font-semibold text-muted-foreground uppercase tracking-wider">Dashboard</span>
-              <Badge className="bg-muted text-muted-foreground border-0 font-body text-xs ml-2">
-                {roleLabels[role]}
-              </Badge>
-            </div>
-            <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">Welcome back, {userName} 👋</h1>
+          <div className="flex items-center gap-2 mb-1">
+            <Heart className="w-5 h-5 text-primary fill-current" />
+            <span className="font-body text-sm font-semibold text-muted-foreground uppercase tracking-wider">Dashboard</span>
+            <Badge className="bg-muted text-muted-foreground border-0 font-body text-xs ml-2">
+              {roleLabels[role]}
+            </Badge>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" className="border-border font-body rounded-xl">
-              <Bell className="w-4 h-4 mr-1.5" /> Alerts <Badge className="ml-1.5 bg-primary text-primary-foreground text-xs border-0">3</Badge>
-            </Button>
-            <Button variant="outline" size="sm" className="border-border font-body rounded-xl">
-              <Settings className="w-4 h-4 mr-1.5" /> Settings
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-blood text-blood font-body rounded-xl hover:bg-blood hover:text-primary-foreground"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-4 h-4 mr-1.5" /> Logout
-            </Button>
-          </div>
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">Welcome back, {userName} 👋</h1>
         </motion.div>
 
-        {/* Role-specific dashboard */}
         {role === "donor" && <DonorDashboard />}
         {role === "hospital" && <OrgDashboardRouter />}
         {role === "admin" && <AdminDashboard />}
