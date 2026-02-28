@@ -291,6 +291,48 @@ export const api = {
             post("/thal/transfusion-done", { patient_id: patientId, transfusion_date: transfusionDate }),
     },
 
+    // ── ThalCare ML Prediction ──────────────────────────────────────────────────
+
+    thalML: {
+        predict: (body: {
+            patient_id?: string; age?: number; weight_kg?: number;
+            splenectomy?: boolean; chelation_therapy?: boolean; baseline_hb?: number;
+            last_hb_pre?: number; last_hb_post?: number; days_since_last_tx?: number;
+            avg_interval_last3?: number; hb_decay_rate?: number;
+        }) => post<{
+            patient_id: string; predicted_days: number; predicted_date: string;
+            urgency: string; confidence_low: number; confidence_high: number;
+            rf_prediction: number; gb_prediction: number; message: string;
+        }>("/thal/ml/predict", body),
+
+        matchDonors: (body: { patient_id: string; patient_blood_type: string; top_n?: number }) =>
+            post<{
+                patient_id: string; eligible_donors: any[]; excluded_count: number; message: string;
+            }>("/thal/ml/match-donors", body),
+
+        getAlerts: (limit = 20) =>
+            get<{
+                generated_at: string; total_patients: number;
+                urgent_count: number; soon_count: number; stable_count: number;
+                urgent: any[]; soon: any[]; stable: any[];
+            }>("/thal/ml/alerts", { limit }),
+
+        getPatientHistory: (patientId: string) =>
+            get<{
+                patient_id: string; transfusions: any[];
+                excluded_donors: string[]; total_transfusions: number;
+            }>(`/thal/ml/patient/${patientId}/history`),
+
+        getModelInfo: () =>
+            get<{ status: string; model_type: string; metrics: any }>("/thal/ml/model-info"),
+
+        retrain: (nPatients = 80, nDonors = 300) =>
+            post<{ status: string; metrics: any; message: string }>(
+                `/thal/ml/train?n_patients=${nPatients}&n_donors=${nDonors}`, {}
+            ),
+    },
+
+
 
     // ── PlateletAlert ───────────────────────────────────────────────────────────
 

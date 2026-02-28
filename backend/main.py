@@ -8,7 +8,7 @@ Run locally:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import auth, blood, thal, platelet, marrow, organ, milk, dashboard, notifications, ai_chat
+from routes import auth, blood, thal, thal_ml, platelet, marrow, organ, milk, dashboard, notifications, ai_chat
 
 app = FastAPI(
     title="LifeForge Connect API",
@@ -36,6 +36,17 @@ app.include_router(milk.router,          prefix="/milk",          tags=["MilkBri
 app.include_router(dashboard.router,     prefix="/dashboard",     tags=["Dashboard"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 app.include_router(ai_chat.router,       prefix="/ai",            tags=["AI Companion"])
+app.include_router(thal_ml.router,       prefix="/thal/ml",       tags=["ThalCare ML"])
+
+@app.on_event("startup")
+def startup_ml_model():
+    """Pre-train the thal ML model on synthetic data at server start."""
+    try:
+        from ml.model_manager import get_model_manager
+        mgr = get_model_manager()
+        mgr.ensure_ready()
+    except Exception as e:
+        print(f"[Startup] ML model init warning: {e}")
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────

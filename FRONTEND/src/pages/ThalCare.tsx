@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Calendar, Clock, Plus, ChevronRight,
   X, UserCheck, AlertTriangle, CheckCircle, Loader2, RefreshCw,
+  Brain, Activity, BarChart3, TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -400,6 +401,18 @@ export default function ThalCare() {
   const [findDonorFor, setFindDonorFor] = useState<ThalPatientExt | null>(null);
   const [markDoneFor, setMarkDoneFor] = useState<ThalPatientExt | null>(null);
 
+  // ML Prediction state
+  const [mlAlerts, setMlAlerts] = useState<any>(null);
+  const [mlMetrics, setMlMetrics] = useState<any>(null);
+  const [mlLoading, setMlLoading] = useState(false);
+  const [mlPrediction, setMlPrediction] = useState<any>(null);
+  const [predicting, setPredicting] = useState(false);
+  const [predForm, setPredForm] = useState({
+    age: 20, weight_kg: 45, splenectomy: false, chelation_therapy: true,
+    baseline_hb: 7.5, last_hb_pre: 7.0, last_hb_post: 10.5,
+    days_since_last_tx: 18, avg_interval_last3: 21, hb_decay_rate: -0.07,
+  });
+
   function fetchData() {
     setLoadingData(true);
     setErrorData(false);
@@ -416,6 +429,34 @@ export default function ThalCare() {
   }
 
   useEffect(() => { fetchData(); }, []);
+
+  // Fetch ML data
+  function fetchMLData() {
+    setMlLoading(true);
+    Promise.all([
+      api.thalML.getAlerts(20),
+      api.thalML.getModelInfo(),
+    ])
+      .then(([alerts, info]) => {
+        setMlAlerts(alerts);
+        setMlMetrics(info);
+      })
+      .catch((e) => console.warn("ML data fetch error:", e))
+      .finally(() => setMlLoading(false));
+  }
+
+  async function runPrediction() {
+    setPredicting(true);
+    setMlPrediction(null);
+    try {
+      const result = await api.thalML.predict(predForm);
+      setMlPrediction(result);
+    } catch (e: any) {
+      console.error("Prediction error:", e);
+    } finally {
+      setPredicting(false);
+    }
+  }
 
   const urgentCount = patients.filter(p => p.is_urgent).length;
   const needMatch = patients.filter(p => p.needs_match_now && p.donor === "Unmatched").length;
@@ -546,6 +587,107 @@ export default function ThalCare() {
                   <Plus className="w-4 h-4 mr-1.5" /> Register Patient
                 </Button>
               </div>
+
+              {/* ML Prediction Card */}
+              <div className="rounded-2xl border-2 border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Brain className="w-5 h-5 text-purple-500" />
+                  <h3 className="font-display text-base font-bold">ML Prediction</h3>
+                </div>
+                <p className="font-body text-xs text-muted-foreground mb-4">
+                  Predict when a patient will next need transfusion using our RF + GBM ensemble model.
+                </p>
+
+                <div className="space-y-2 mb-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-body text-[10px] text-muted-foreground">Age</label>
+                      <Input type="number" value={predForm.age} onChange={e => setPredForm(f => ({ ...f, age: +e.target.value }))} className="h-8 text-xs rounded-lg border-purple-500/20" />
+                    </div>
+                    <div>
+                      <label className="font-body text-[10px] text-muted-foreground">Weight (kg)</label>
+                      <Input type="number" value={predForm.weight_kg} onChange={e => setPredForm(f => ({ ...f, weight_kg: +e.target.value }))} className="h-8 text-xs rounded-lg border-purple-500/20" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-body text-[10px] text-muted-foreground">Hb Pre (g/dL)</label>
+                      <Input type="number" step="0.1" value={predForm.last_hb_pre} onChange={e => setPredForm(f => ({ ...f, last_hb_pre: +e.target.value }))} className="h-8 text-xs rounded-lg border-purple-500/20" />
+                    </div>
+                    <div>
+                      <label className="font-body text-[10px] text-muted-foreground">Hb Post (g/dL)</label>
+                      <Input type="number" step="0.1" value={predForm.last_hb_post} onChange={e => setPredForm(f => ({ ...f, last_hb_post: +e.target.value }))} className="h-8 text-xs rounded-lg border-purple-500/20" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="font-body text-[10px] text-muted-foreground">Days Since Last Tx</label>
+                      <Input type="number" value={predForm.days_since_last_tx} onChange={e => setPredForm(f => ({ ...f, days_since_last_tx: +e.target.value }))} className="h-8 text-xs rounded-lg border-purple-500/20" />
+                    </div>
+                    <div>
+                      <label className="font-body text-[10px] text-muted-foreground">Avg Interval</label>
+                      <Input type="number" value={predForm.avg_interval_last3} onChange={e => setPredForm(f => ({ ...f, avg_interval_last3: +e.target.value }))} className="h-8 text-xs rounded-lg border-purple-500/20" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-1">
+                    <label className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                      <input type="checkbox" checked={predForm.splenectomy} onChange={e => setPredForm(f => ({ ...f, splenectomy: e.target.checked }))} className="rounded" />
+                      Splenectomy
+                    </label>
+                    <label className="flex items-center gap-1.5 font-body text-xs text-muted-foreground">
+                      <input type="checkbox" checked={predForm.chelation_therapy} onChange={e => setPredForm(f => ({ ...f, chelation_therapy: e.target.checked }))} className="rounded" />
+                      Chelation
+                    </label>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={runPrediction}
+                  disabled={predicting}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-body font-bold rounded-xl text-xs"
+                >
+                  {predicting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Activity className="w-4 h-4 mr-1.5" />}
+                  {predicting ? "Predicting…" : "Run Prediction"}
+                </Button>
+
+                {mlPrediction && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 rounded-xl border-2 border-purple-500/20 p-4 bg-card"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-body text-xs text-muted-foreground">Predicted Next Tx</span>
+                      <Badge className={`font-body text-xs border-0 ${mlPrediction.urgency === "URGENT" ? "bg-blood/15 text-blood"
+                          : mlPrediction.urgency === "SOON" ? "bg-amber-500/15 text-amber-600"
+                            : "bg-secondary/15 text-secondary"
+                        }`}>
+                        {mlPrediction.urgency}
+                      </Badge>
+                    </div>
+                    <div className="font-display text-3xl font-black text-purple-600">
+                      {mlPrediction.predicted_days} <span className="text-base font-normal text-muted-foreground">days</span>
+                    </div>
+                    <div className="font-body text-xs text-muted-foreground mt-1">
+                      {mlPrediction.predicted_date} · Range: {mlPrediction.confidence_low}–{mlPrediction.confidence_high} days
+                    </div>
+                    <div className="flex gap-3 mt-3 text-[10px] font-body text-muted-foreground">
+                      <span>🌲 RF: {mlPrediction.rf_prediction}d</span>
+                      <span>📈 GBM: {mlPrediction.gb_prediction}d</span>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* ML Alerts Button */}
+              <Button
+                variant="outline"
+                onClick={fetchMLData}
+                disabled={mlLoading}
+                className="w-full border-purple-500/30 text-purple-600 hover:bg-purple-500/10 font-body text-xs rounded-xl"
+              >
+                {mlLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <BarChart3 className="w-4 h-4 mr-1.5" />}
+                {mlLoading ? "Loading ML Dashboard…" : "Load ML Patient Alerts"}
+              </Button>
             </div>
 
             {/* ── Patient List ── */}
@@ -582,10 +724,10 @@ export default function ThalCare() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.07 }}
                       className={`rounded-2xl border-2 bg-card p-5 shadow-card transition-all ${p.is_urgent
-                          ? "border-blood/40 shadow-blood/10"
-                          : p.needs_match_now
-                            ? "border-amber-400/40"
-                            : "border-thal/20"
+                        ? "border-blood/40 shadow-blood/10"
+                        : p.needs_match_now
+                          ? "border-amber-400/40"
+                          : "border-thal/20"
                         }`}
                     >
                       {/* Header */}
@@ -602,10 +744,10 @@ export default function ThalCare() {
                         <div className="flex flex-col items-end gap-1">
                           <Badge
                             className={`font-body text-xs border-0 ${p.is_urgent
-                                ? "bg-blood/15 text-blood"
-                                : p.needs_match_now
-                                  ? "bg-amber-500/15 text-amber-600"
-                                  : "bg-thal/15 text-thal"
+                              ? "bg-blood/15 text-blood"
+                              : p.needs_match_now
+                                ? "bg-amber-500/15 text-amber-600"
+                                : "bg-thal/15 text-thal"
                               }`}
                           >
                             <Clock className="w-3 h-3 mr-1" /> {p.countdown}
@@ -677,6 +819,106 @@ export default function ThalCare() {
             </div>
           </div>
         </div>
+
+        {/* ── ML Alerts Dashboard ── */}
+        {mlAlerts && (
+          <div className="container mx-auto px-4 pb-10">
+            <div className="rounded-2xl border-2 border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <Brain className="w-6 h-6 text-purple-500" />
+                  <div>
+                    <h2 className="font-display text-xl font-bold">ML Prediction Dashboard</h2>
+                    <p className="font-body text-xs text-muted-foreground">
+                      {mlMetrics?.model_type} · Generated {new Date(mlAlerts.generated_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                {mlMetrics?.metrics && (
+                  <div className="flex gap-4">
+                    {[{ label: "MAE", value: `${mlMetrics.metrics.mae}d`, color: "text-purple-600" },
+                    { label: "RMSE", value: `${mlMetrics.metrics.rmse}d`, color: "text-indigo-600" },
+                    { label: "R²", value: mlMetrics.metrics.r2, color: "text-blue-600" },
+                    ].map(m => (
+                      <div key={m.label} className="text-center">
+                        <div className={`font-display font-bold text-lg ${m.color}`}>{m.value}</div>
+                        <div className="font-body text-[10px] text-muted-foreground">{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Urgency Summary */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                {[
+                  { tier: "URGENT", count: mlAlerts.urgent_count, items: mlAlerts.urgent, color: "blood", icon: "🚨" },
+                  { tier: "SOON", count: mlAlerts.soon_count, items: mlAlerts.soon, color: "amber-500", icon: "⚡" },
+                  { tier: "STABLE", count: mlAlerts.stable_count, items: mlAlerts.stable, color: "secondary", icon: "✅" },
+                ].map(t => (
+                  <div key={t.tier} className={`rounded-xl border-2 border-${t.color}/20 bg-${t.color}/5 p-4`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{t.icon}</span>
+                      <span className="font-display font-bold text-sm">{t.tier}</span>
+                    </div>
+                    <div className={`font-display text-3xl font-black text-${t.color}`}>{t.count}</div>
+                    <div className="font-body text-xs text-muted-foreground">patients</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Patient Alerts Table */}
+              {mlAlerts.urgent.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="font-display text-sm font-bold text-blood mb-3 flex items-center gap-2">
+                    🚨 Urgent — Transfusion needed within 7 days
+                  </h3>
+                  <div className="space-y-2">
+                    {mlAlerts.urgent.map((a: any) => (
+                      <div key={a.patient_id} className="flex items-center justify-between p-3 rounded-xl bg-blood/5 border border-blood/20">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-blood/15 flex items-center justify-center font-display text-xs font-bold text-blood">
+                            {a.blood_type}
+                          </div>
+                          <div>
+                            <div className="font-body font-semibold text-sm">{a.patient_id}</div>
+                            <div className="font-body text-xs text-muted-foreground">
+                              {a.eligible_donors} eligible donors · {a.excluded_donors} excluded
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-display font-bold text-blood">{a.predicted_days}d</div>
+                          <div className="font-body text-[10px] text-muted-foreground">
+                            {a.confidence_low}–{a.confidence_high}d range
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {mlAlerts.soon.length > 0 && (
+                <div>
+                  <h3 className="font-display text-sm font-bold text-amber-600 mb-3 flex items-center gap-2">
+                    ⚡ Soon — Transfusion needed within 8–14 days
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {mlAlerts.soon.slice(0, 6).map((a: any) => (
+                      <div key={a.patient_id} className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                        <div className="font-body font-semibold text-xs">{a.patient_id}</div>
+                        <div className="font-display font-bold text-amber-600">{a.predicted_days}d</div>
+                        <div className="font-body text-[10px] text-muted-foreground">{a.predicted_date}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
       <Footer />
 
